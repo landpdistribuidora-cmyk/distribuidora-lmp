@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DISTRIBUIDORA L&P</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #eef4fb;
+      color: #111827;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #007bff, #0056d6);
+      text-align: center;
+      padding: 30px;
+    }
+
+    .header img {
+      max-width: 330px;
+      width: 80%;
+    }
+
+    .container {
+      padding: 25px;
+    }
+
+    .top-panel,
+    .productos-box,
+    .pedido-box {
+      background: white;
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    select,
+    input {
+      padding: 13px;
+      border-radius: 12px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      margin-top: 8px;
+      margin-bottom: 18px;
+      min-width: 230px;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    button {
+      border: none;
+      border-radius: 12px;
+      padding: 13px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      background: #0066ff;
+      color: white;
+      margin: 5px;
+    }
+
+    .btn-dark {
+      background: #1f2937;
+    }
+
+    .btn-red {
+      background: #dc2626;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 25px;
+    }
+
+    .categorias button {
+      background: white;
+      color: #1d4ed8;
+      border: 2px solid #1d4ed8;
+    }
+
+    .categorias button.activo {
+      background: #1d4ed8;
+      color: white;
+    }
+
+    .productos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .producto {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 18px;
+      padding: 15px;
+      text-align: center;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+      transition: 0.15s ease;
+    }
+
+    .producto:hover {
+      transform: scale(1.03);
+    }
+
+    .producto img {
+      width: 110px;
+      height: 90px;
+      object-fit: contain;
+    }
+
+    .producto h3 {
+      margin: 10px 0 5px;
+      font-size: 17px;
+    }
+
+    .producto p {
+      color: #1d4ed8;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .pedido-box {
+      position: sticky;
+      top: 20px;
+      height: fit-content;
+    }
+
+    .pedido-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .contador {
+      background: #1d4ed8;
+      color: white;
+      border-radius: 15px;
+      padding: 7px 12px;
+      font-weight: bold;
+    }
+
+    .pedido-item {
+      border-left: 5px solid #1d4ed8;
+      padding: 10px;
+      margin-bottom: 12px;
+      background: #f8fafc;
+      border-radius: 12px;
+    }
+
+    .pedido-controles button {
+      padding: 8px 13px;
+      border-radius: 10px;
+    }
+
+    .total {
+      font-size: 34px;
+      color: #1d4ed8;
+      font-weight: bold;
+      text-align: center;
+      background: #eaf2ff;
+      padding: 18px;
+      border-radius: 18px;
+      margin: 20px 0;
+    }
+
+    #scanner {
+  display: none;
+  width: 100%;
+  max-width: 520px;
+  height: 330px;
+  margin-top: 15px;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #111827;
+}
+
+#scanner video,
+#scanner canvas {
+  width: 100% !important;
+  height: 330px !important;
+  object-fit: cover !important;
+}
+
+    .mensaje {
+      background: #eaf2ff;
+      color: #1d4ed8;
+      padding: 12px;
+      border-radius: 12px;
+      margin-top: 10px;
+      font-weight: bold;
+      display: none;
+    }
+
+    @media(max-width: 900px) {
+      .container {
+        padding: 12px;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .pedido-box {
+        position: relative;
+        top: 0;
+      }
+
+      button {
+        width: 100%;
+        margin: 5px 0;
+      }
+
+      select,
+      input {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <img src="images/logo.png" onerror="this.style.display='none'" alt="Distribuidora L&P">
+  </div>
+
+  <div class="container">
+
+    <div class="top-panel">
+      <label>Tipo de usuario</label><br>
+      <select id="tipoUsuario">
+        <option value="empleado">Empleado</option>
+        <option value="cliente">Cliente</option>
+      </select>
+
+      <br>
+
+      <label>Cliente / Tienda</label><br>
+      <select id="cliente">
+        <option value="">Cargando clientes...</option>
+      </select>
+
+      <br>
+
+      <label>Buscar producto</label><br>
+      <input id="buscarProducto" type="text" placeholder="Buscar producto o escanear código..." oninput="mostrarProductos()">
+
+      <button onclick="limpiarBusqueda()">Limpiar</button>
+      <button onclick="iniciarEscaner()">📷 Escanear producto</button>
+      <button class="btn-red" onclick="detenerEscaner()">Cerrar cámara</button>
+
+      <div id="scanner"></div>
+      <div id="mensaje" class="mensaje"></div>
+      <div id="asignarBarcode" style="display:none; margin-top:15px; background:#eaf2ff; padding:15px; border-radius:12px;">
+  <h3>Asignar código de barras</h3>
+
+  <p><strong>Código leído:</strong> <span id="codigoLeido"></span></p>
+
+  <label>Selecciona producto</label><br>
+  <select id="productoParaBarcode"></select>
+
+  <br><br>
+
+  <button onclick="guardarBarcode()">Guardar código</button>
+</div>
+    </div>
+
+    <div class="layout">
+
+      <div class="productos-box">
+        <h2>Productos</h2>
+
+        <div class="categorias">
+          <button onclick="filtrarCategoria('Todos')" id="cat-Todos" class="activo">Todos</button>
+          <button onclick="filtrarCategoria('Sabritas')" id="cat-Sabritas">Sabritas</button>
+          <button onclick="filtrarCategoria('Dulces')" id="cat-Dulces">Dulces</button>
+          <button onclick="filtrarCategoria('Bebidas')" id="cat-Bebidas">Bebidas</button>
+          <button onclick="filtrarCategoria('Galletas')" id="cat-Galletas">Galletas</button>
+          <button onclick="filtrarCategoria('Salsas')" id="cat-Salsas">Salsas</button>
+          <button onclick="filtrarCategoria('Enlatados')" id="cat-Enlatados">Enlatados</button>
+          <button onclick="filtrarCategoria('Lácteos')" id="cat-Lácteos">Lácteos</button>
+        </div>
+
+        <div id="productos" class="productos-grid"></div>
+      </div>
+
+      <div class="pedido-box">
+        <div class="pedido-header">
+          <h2>🛒 Pedido</h2>
+          <span id="contador" class="contador">0 productos</span>
+        </div>
+
+        <div id="pedido"></div>
+
+        <div class="total" id="total">Total: $0.00</div>
+
+        <button onclick="crearFactura()">Crear factura</button>
+        <button class="btn-dark" onclick="vaciarPedido()">Vaciar pedido</button>
+        <button class="btn-dark" onclick="nuevoPedido()">Nuevo pedido</button>
+      </div>
+
+    </div>
+  </div>
+
+<script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
+
+  <script>
+    let productos = [];
+    let pedido = [];
+    let categoriaActual = "Todos";
+    let scannerActivo = false;
+let barcodes = [];
+let ultimoCodigoEscaneado = "";
+    async function cargarDatos() {
+      const barcodesRes = await fetch("/barcodes");
+barcodes = await barcodesRes.json();
+console.log("BARCODES:", barcodes);
+      try {
+        const clientesRes = await fetch("/clientes");
+        const dataClientes = await clientesRes.json();
+        const clientes = dataClientes.QueryResponse?.Customer || [];
+
+        const clienteSelect = document.getElementById("cliente");
+        clienteSelect.innerHTML = "";
+
+        if (clientes.length === 0) {
+          clienteSelect.innerHTML = `<option value="">No hay clientes</option>`;
+        } else {
+          clientes.forEach(c => {
+            clienteSelect.innerHTML += `
+              <option value="${c.Id}">
+                ${c.DisplayName || c.FullyQualifiedName || "Cliente sin nombre"}
+              </option>
+            `;
+          });
+        }
+
+        const productosRes = await fetch("/productos");
+        const dataProductos = await productosRes.json();
+        productos = dataProductos.QueryResponse?.Item || [];
+const selectBarcode = document.getElementById("productoParaBarcode");
+
+selectBarcode.innerHTML = "";
+
+productos.forEach(p => {
+  const option = document.createElement("option");
+  option.value = p.Id;
+  option.textContent = p.Name;
+  selectBarcode.appendChild(option);
+});
+        mostrarProductos();
+        mostrarPedido();
+
+      } catch (error) {
+        console.log("ERROR CARGANDO DATOS:", error);
+        alert("Error cargando clientes o productos. Revisa que server.js esté corriendo.");
+      }
+    }
+
+    function obtenerNombreProducto(p) {
+      return p.Name || p.FullyQualifiedName || "Producto sin nombre";
+    }
+
+    function obtenerPrecioProducto(p) {
+      return Number(p.UnitPrice || 0);
+    }
+
+    function obtenerCodigoProducto(p) {
+      return String(p.Sku || p.SKU || p.sku || p.Id || "").trim();
+    }
+
+    function mostrarMensaje(texto) {
+      const mensaje = document.getElementById("mensaje");
+      mensaje.innerText = texto;
+      mensaje.style.display = "block";
+
+      setTimeout(() => {
+        mensaje.style.display = "none";
+      }, 3000);
+    }
+
+    function mostrarProductos() {
+      const divProductos = document.getElementById("productos");
+      const buscar = document.getElementById("buscarProducto").value.toLowerCase().trim();
+
+      divProductos.innerHTML = "";
+
+      const filtrados = productos.filter(p => {
+        const nombre = obtenerNombreProducto(p).toLowerCase();
+        const codigo = obtenerCodigoProducto(p).toLowerCase();
+
+        const coincideBusqueda =
+          !buscar ||
+          nombre.includes(buscar) ||
+          codigo.includes(buscar);
+
+        const coincideCategoria =
+          categoriaActual === "Todos" ||
+          nombre.includes(categoriaActual.toLowerCase());
+
+        return coincideBusqueda && coincideCategoria;
+      });
+
+      if (filtrados.length === 0) {
+        divProductos.innerHTML = `<p>No se encontraron productos.</p>`;
+        return;
+      }
+
+      filtrados.forEach(p => {
+        const nombre = obtenerNombreProducto(p);
+        const precio = obtenerPrecioProducto(p);
+
+        const card = document.createElement("div");
+        card.className = "producto";
+        card.id = "producto-" + p.Id;
+
+        card.innerHTML = `
+          <img src="images/default.png" onerror="this.src='images/default.png'" alt="${nombre}">
+          <h3>${nombre}</h3>
+          <p>$${precio.toFixed(2)}</p>
+        `;
+
+        card.onclick = () => agregarProducto(p);
+        divProductos.appendChild(card);
+      });
+    }
+
+    function agregarProducto(producto) {
+      const id = producto.Id;
+      const nombre = obtenerNombreProducto(producto);
+      const precio = obtenerPrecioProducto(producto);
+
+      const existente = pedido.find(p => p.id === id);
+
+      if (existente) {
+        existente.cantidad++;
+      } else {
+        pedido.push({
+          id: id,
+          nombre: nombre,
+          precio: precio,
+          cantidad: 1
+        });
+      }
+
+      mostrarPedido();
+      mostrarMensaje("Producto agregado: " + nombre);
+    }
+
+    function buscarPorCodigo(codigo) {
+      const codigoLimpio = String(codigo || "").trim();
+
+      if (!codigoLimpio) return;
+
+      document.getElementById("buscarProducto").value = codigoLimpio;
+      mostrarProductos();
+
+      const producto = productos.find(p => {
+        const sku = obtenerCodigoProducto(p);
+        const nombre = obtenerNombreProducto(p);
+
+        return (
+          sku === codigoLimpio ||
+          String(p.Id || "") === codigoLimpio ||
+          nombre.toLowerCase().includes(codigoLimpio.toLowerCase())
+        );
+      });
+
+    if (!producto) {
+  ultimoCodigoEscaneado = codigoLimpio;
+
+  document.getElementById("codigoLeido").innerText = codigoLimpio;
+  document.getElementById("asignarBarcode").style.display = "block";
+
+  mostrarMensaje("Código nuevo. Selecciona el producto correcto y guárdalo.");
+  return;
+}
+
+      agregarProducto(producto);
+    }
+
+    async function iniciarEscaner() {
+      const scannerDiv = document.getElementById("scanner");
+
+      scannerDiv.style.display = "block";
+      scannerDiv.innerHTML = "";
+
+      if (scannerActivo) {
+        mostrarMensaje("La cámara ya está activa.");
+        return;
+      }
+
+      if (typeof Quagga === "undefined") {
+        alert("No se cargó la librería Quagga. Revisa internet o HTTPS.");
+        return;
+      }
+
+      try {
+        Quagga.init({
+          inputStream: {
+            type: "LiveStream",
+            target: scannerDiv,
+            constraints: {
+              facingMode: "environment",
+              width: { min: 640 },
+              height: { min: 480 }
+            }
+          },
+          locator: {
+            patchSize: "medium",
+            halfSample: true
+          },
+          numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
+          frequency: 10,
+          decoder: {
+            readers: [
+              "ean_reader",
+              "ean_8_reader",
+              "upc_reader",
+              "upc_e_reader",
+              "code_128_reader",
+              "code_39_reader"
+            ]
+          },
+          locate: true
+        }, function(err) {
+          if (err) {
+            console.log("ERROR QUAGGA INIT:", err);
+            alert("No se pudo abrir la cámara con Quagga.");
+            scannerDiv.style.display = "none";
+            return;
+          }
+
+          Quagga.start();
+          scannerActivo = true;
+          mostrarMensaje("Cámara lista para escanear.");
+        });
+
+        Quagga.offDetected();
+
+        Quagga.onDetected(function(result) {
+          const codigo = result?.codeResult?.code;
+
+          if (!codigo) return;
+
+          alert("Código leído: " + codigo);
+
+          detenerEscaner();
+          buscarPorCodigo(codigo);
+        });
+
+      } catch (error) {
+        console.log("ERROR ESCÁNER:", error);
+        alert("No se pudo abrir la cámara. En celular puede requerir HTTPS.");
+        scannerDiv.style.display = "none";
+      }
+    }
+
+    function detenerEscaner() {
+      const scannerDiv = document.getElementById("scanner");
+
+      try {
+        if (scannerActivo && typeof Quagga !== "undefined") {
+          Quagga.stop();
+        }
+      } catch (error) {
+        console.log("ERROR CERRANDO ESCÁNER:", error);
+      }
+
+      scannerActivo = false;
+      scannerDiv.innerHTML = "";
+      scannerDiv.style.display = "none";
+    }
+async function guardarBarcode() {
+  const codigo = ultimoCodigoEscaneado;
+  const productoId = document.getElementById("productoParaBarcode").value;
+
+  if (!codigo) {
+    alert("No hay código escaneado.");
+    return;
+  }
+
+  if (!productoId) {
+    alert("Selecciona un producto.");
+    return;
+  }
+
+  const producto = productos.find(p => String(p.Id) === String(productoId));
+
+  if (!producto) {
+    alert("Producto no encontrado.");
+    return;
+  }
+
+  const nuevoBarcode = {
+    barcode: codigo,
+    itemId: producto.Id,
+    itemName: producto.Name
+  };
+
+  const res = await fetch("/barcodes", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(nuevoBarcode)
+  });
+
+  if (!res.ok) {
+    alert("Error guardando código.");
+    return;
+  }
+
+  barcodes.push(nuevoBarcode);
+
+  document.getElementById("asignarBarcode").style.display = "none";
+  document.getElementById("buscarProducto").value = "";
+
+  agregarProducto(producto);
+
+  alert("Código guardado correctamente.");
+}
+    function mostrarPedido() {
+      const divPedido = document.getElementById("pedido");
+      const totalDiv = document.getElementById("total");
+      const contador = document.getElementById("contador");
+
+      divPedido.innerHTML = "";
+
+      let total = 0;
+      let cantidadTotal = 0;
+
+      pedido.forEach(item => {
+        const subtotal = Number(item.precio || 0) * Number(item.cantidad || 0);
+        total += subtotal;
+        cantidadTotal += item.cantidad;
+
+        divPedido.innerHTML += `
+          <div class="pedido-item">
+            <strong>${item.nombre}</strong><br>
+            Cantidad: ${item.cantidad}<br>
+            Subtotal: $${subtotal.toFixed(2)}
+
+            <div class="pedido-controles">
+              <button onclick="restarProducto('${item.id}')">-</button>
+              <button onclick="sumarProducto('${item.id}')">+</button>
+              <button onclick="eliminarProducto('${item.id}')">X</button>
+            </div>
+          </div>
+        `;
+      });
+
+      totalDiv.innerText = "Total: $" + total.toFixed(2);
+      contador.innerText = cantidadTotal + " productos";
+    }
+
+    function sumarProducto(id) {
+      const item = pedido.find(p => p.id === id);
+      if (item) item.cantidad++;
+      mostrarPedido();
+    }
+
+    function restarProducto(id) {
+      const item = pedido.find(p => p.id === id);
+      if (item) {
+        item.cantidad--;
+        if (item.cantidad <= 0) {
+          pedido = pedido.filter(p => p.id !== id);
+        }
+      }
+      mostrarPedido();
+    }
+
+    function eliminarProducto(id) {
+      pedido = pedido.filter(p => p.id !== id);
+      mostrarPedido();
+    }
+
+    function vaciarPedido() {
+      pedido = [];
+      mostrarPedido();
+    }
+
+    function nuevoPedido() {
+      pedido = [];
+      document.getElementById("buscarProducto").value = "";
+      mostrarPedido();
+      mostrarProductos();
+    }
+
+    function limpiarBusqueda() {
+      document.getElementById("buscarProducto").value = "";
+      mostrarProductos();
+    }
+
+    function filtrarCategoria(categoria) {
+      categoriaActual = categoria;
+
+      document.querySelectorAll(".categorias button").forEach(btn => {
+        btn.classList.remove("activo");
+      });
+
+      const boton = document.getElementById("cat-" + categoria);
+      if (boton) boton.classList.add("activo");
+
+      mostrarProductos();
+    }
+
+    async function crearFactura() {
+      const clienteId = document.getElementById("cliente").value;
+
+      if (!clienteId) {
+        alert("Selecciona un cliente.");
+        return;
+      }
+
+      if (pedido.length === 0) {
+        alert("Agrega productos al pedido.");
+        return;
+      }
+
+      try {
+        const res = await fetch("/crear-factura", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            customerId: clienteId,
+            items: pedido.map(p => ({
+              itemId: p.id,
+              id: p.id,
+              name: p.nombre,
+              qty: p.cantidad,
+              quantity: p.cantidad,
+              unitPrice: p.precio,
+              amount: Number((p.precio * p.cantidad).toFixed(2))
+            }))
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.log(data);
+          alert("Error creando factura.");
+          return;
+        }
+
+        alert("Factura creada correctamente.");
+        pedido = [];
+        mostrarPedido();
+
+      } catch (error) {
+        console.log("ERROR CREANDO FACTURA:", error);
+        alert("Error creando factura.");
+      }
+    }
+
+    cargarDatos();
+  </script>
+
+</body>
+</html>
