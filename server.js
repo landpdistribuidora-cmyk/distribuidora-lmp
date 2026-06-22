@@ -57,7 +57,7 @@ async function obtenerTokenValido() {
 
 async function qboGet(pathUrl) {
   const token = await obtenerTokenValido();
-  const url = `https://sandbox-quickbooks.api.intuit.com/v3/company/${token.realmId}${pathUrl}`;
+  const url = `https://quickbooks.api.intuit.com/v3/company/${token.realmId}${pathUrl}`;
 
   const response = await axios.get(url, {
     headers: {
@@ -71,7 +71,7 @@ async function qboGet(pathUrl) {
 
 async function qboPost(pathUrl, body) {
   const token = await obtenerTokenValido();
-  const url = `https://sandbox-quickbooks.api.intuit.com/v3/company/${token.realmId}${pathUrl}`;
+  const url = `https://quickbooks.api.intuit.com/v3/company/${token.realmId}${pathUrl}`;
 
   const response = await axios.post(url, body, {
     headers: {
