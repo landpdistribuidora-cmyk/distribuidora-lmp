@@ -282,17 +282,13 @@
 
       <div class="productos-box">
         <h2>Productos</h2>
-
-        <div class="categorias">
-          <button onclick="filtrarCategoria('Todos')" id="cat-Todos" class="activo">Todos</button>
-          <button onclick="filtrarCategoria('Sabritas')" id="cat-Sabritas">Sabritas</button>
-          <button onclick="filtrarCategoria('Dulces')" id="cat-Dulces">Dulces</button>
-          <button onclick="filtrarCategoria('Bebidas')" id="cat-Bebidas">Bebidas</button>
-          <button onclick="filtrarCategoria('Galletas')" id="cat-Galletas">Galletas</button>
-          <button onclick="filtrarCategoria('Salsas')" id="cat-Salsas">Salsas</button>
-          <button onclick="filtrarCategoria('Enlatados')" id="cat-Enlatados">Enlatados</button>
-          <button onclick="filtrarCategoria('Lácteos')" id="cat-Lácteos">Lácteos</button>
-        </div>
+<div class="categorias">
+  <button onclick="filtrarCategoria('Todos')" id="cat-Todos" class="activo">Todos</button>
+  <button onclick="filtrarCategoria('Abarrotes')" id="cat-Abarrotes">Abarrotes</button>
+  <button onclick="filtrarCategoria('Sabritas')" id="cat-Sabritas">Sabritas</button>
+  <button onclick="filtrarCategoria('Galletas')" id="cat-Galletas">Galletas</button>
+  <button onclick="filtrarCategoria('Dulces')" id="cat-Dulces">Dulces</button>
+</div>
 
         <div id="productos" class="productos-grid"></div>
       </div>
@@ -513,26 +509,27 @@ productos.forEach(p => {
           inputStream: {
             type: "LiveStream",
             target: scannerDiv,
-            constraints: {
-              facingMode: "environment",
-              width: { min: 640 },
-              height: { min: 480 }
+  constraints: {
+    facingMode: {
+        exact: "environment"
+    },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 }
+}
             }
           },
           locator: {
-            patchSize: "medium",
-            halfSample: true
+            patchSize: "large",
+            halfSample: false
           },
           numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
-          frequency: 10,
+          frequency: 5,
           decoder: {
             readers: [
               "ean_reader",
-              "ean_8_reader",
               "upc_reader",
               "upc_e_reader",
-              "code_128_reader",
-              "code_39_reader"
+              
             ]
           },
           locate: true
@@ -555,7 +552,7 @@ productos.forEach(p => {
           const codigo = result?.codeResult?.code;
 
           if (!codigo) return;
-
+if (codigo.length < 12) return;
           alert("Código leído: " + codigo);
 
           detenerEscaner();
