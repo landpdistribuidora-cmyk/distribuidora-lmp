@@ -6,239 +6,50 @@
   <title>DISTRIBUIDORA L&P</title>
 
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #eef4fb;
-      color: #111827;
-    }
-
-    .header {
-      background: linear-gradient(135deg, #007bff, #0056d6);
-      text-align: center;
-      padding: 30px;
-    }
-
-    .header img {
-      max-width: 330px;
-      width: 80%;
-    }
-
-    .container {
-      padding: 25px;
-    }
-
-    .top-panel,
-    .productos-box,
-    .pedido-box {
-      background: white;
-      border-radius: 18px;
-      padding: 20px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-      margin-bottom: 20px;
-    }
-
-    label {
-      font-weight: bold;
-      font-size: 18px;
-    }
-
-    select,
-    input {
-      padding: 13px;
-      border-radius: 12px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-      margin-top: 8px;
-      margin-bottom: 18px;
-      min-width: 230px;
-      max-width: 100%;
-      box-sizing: border-box;
-    }
-
-    button {
-      border: none;
-      border-radius: 12px;
-      padding: 13px 20px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      background: #0066ff;
-      color: white;
-      margin: 5px;
-    }
-
-    .btn-dark {
-      background: #1f2937;
-    }
-
-    .btn-red {
-      background: #dc2626;
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 25px;
-    }
-
-    .categorias button {
-      background: white;
-      color: #1d4ed8;
-      border: 2px solid #1d4ed8;
-    }
-
-    .categorias button.activo {
-      background: #1d4ed8;
-      color: white;
-    }
-
-    .productos-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-      gap: 20px;
-      margin-top: 20px;
-    }
-
-    .producto {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 18px;
-      padding: 15px;
-      text-align: center;
-      cursor: pointer;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-      transition: 0.15s ease;
-    }
-
-    .producto:hover {
-      transform: scale(1.03);
-    }
-
-    .producto img {
-      width: 110px;
-      height: 90px;
-      object-fit: contain;
-    }
-
-    .producto h3 {
-      margin: 10px 0 5px;
-      font-size: 17px;
-    }
-
-    .producto p {
-      color: #1d4ed8;
-      font-weight: bold;
-      font-size: 18px;
-    }
-
-    .pedido-box {
-      position: sticky;
-      top: 20px;
-      height: fit-content;
-    }
-
-    .pedido-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .contador {
-      background: #1d4ed8;
-      color: white;
-      border-radius: 15px;
-      padding: 7px 12px;
-      font-weight: bold;
-    }
-
-    .pedido-item {
-      border-left: 5px solid #1d4ed8;
-      padding: 10px;
-      margin-bottom: 12px;
-      background: #f8fafc;
-      border-radius: 12px;
-    }
-
-    .pedido-controles button {
-      padding: 8px 13px;
-      border-radius: 10px;
-    }
-
-    .total {
-      font-size: 34px;
-      color: #1d4ed8;
-      font-weight: bold;
-      text-align: center;
-      background: #eaf2ff;
-      padding: 18px;
-      border-radius: 18px;
-      margin: 20px 0;
-    }
-
-    #scanner {
-  display: none;
-  width: 100%;
-  max-width: 520px;
-  height: 330px;
-  margin-top: 15px;
-  border-radius: 15px;
-  overflow: hidden;
-  background: #111827;
-}
-
-#scanner video,
-#scanner canvas {
-  width: 100% !important;
-  height: 330px !important;
-  object-fit: cover !important;
-}
-
-    .mensaje {
-      background: #eaf2ff;
-      color: #1d4ed8;
-      padding: 12px;
-      border-radius: 12px;
-      margin-top: 10px;
-      font-weight: bold;
-      display: none;
-    }
-
+    body { margin: 0; font-family: Arial, sans-serif; background: #eef4fb; color: #111827; }
+    .header { background: linear-gradient(135deg, #007bff, #0056d6); text-align: center; padding: 25px; }
+    .header img { max-width: 330px; width: 80%; }
+    .container { padding: 25px; }
+    .top-panel, .productos-box, .pedido-box { background: white; border-radius: 18px; padding: 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    label { font-weight: bold; font-size: 18px; }
+    select, input { padding: 13px; border-radius: 12px; border: 1px solid #ccc; font-size: 16px; margin-top: 8px; margin-bottom: 18px; min-width: 230px; max-width: 100%; box-sizing: border-box; }
+    button { border: none; border-radius: 12px; padding: 13px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #0066ff; color: white; margin: 5px; }
+    .btn-dark { background: #1f2937; }
+    .btn-red { background: #dc2626; }
+    .btn-green { background: #16a34a; }
+    .layout { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; }
+    .categorias button { background: white; color: #1d4ed8; border: 2px solid #1d4ed8; }
+    .categorias button.activo { background: #1d4ed8; color: white; }
+    .productos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 20px; margin-top: 20px; }
+    .producto { background: white; border: 1px solid #ddd; border-radius: 18px; padding: 15px; text-align: center; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.08); transition: 0.15s ease; }
+    .producto:hover { transform: scale(1.03); }
+    .producto img { width: 115px; height: 95px; object-fit: contain; }
+    .producto h3 { margin: 10px 0 5px; font-size: 17px; }
+    .producto p { color: #1d4ed8; font-weight: bold; font-size: 18px; }
+    .pedido-box { position: sticky; top: 20px; height: fit-content; }
+    .pedido-header { display: flex; justify-content: space-between; align-items: center; }
+    .contador { background: #1d4ed8; color: white; border-radius: 15px; padding: 7px 12px; font-weight: bold; }
+    .pedido-item { border-left: 5px solid #1d4ed8; padding: 10px; margin-bottom: 12px; background: #f8fafc; border-radius: 12px; }
+    .pedido-controles button { padding: 8px 13px; border-radius: 10px; }
+    .total { font-size: 32px; color: #1d4ed8; font-weight: bold; text-align: center; background: #eaf2ff; padding: 18px; border-radius: 18px; margin: 20px 0; }
+    .mensaje { background: #eaf2ff; color: #1d4ed8; padding: 12px; border-radius: 12px; margin-top: 10px; font-weight: bold; display: none; }
+    .voz-activa { background: #dcfce7; color: #166534; padding: 12px; border-radius: 12px; margin-top: 10px; font-weight: bold; display: none; }
     @media(max-width: 900px) {
-      .container {
-        padding: 12px;
-      }
-
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
-      .pedido-box {
-        position: relative;
-        top: 0;
-      }
-
-      button {
-        width: 100%;
-        margin: 5px 0;
-      }
-
-      select,
-      input {
-        width: 100%;
-      }
+      .container { padding: 12px; }
+      .layout { grid-template-columns: 1fr; }
+      .pedido-box { position: relative; top: 0; }
+      button { width: 100%; margin: 5px 0; }
+      select, input { width: 100%; }
     }
   </style>
 </head>
 
 <body>
-
   <div class="header">
-    <img src="images/logo.png" onerror="this.style.display='none'" alt="Distribuidora L&P">
+<img src="images/logo.jpeg?v=2" alt="Distribuidora L&P" class="logo">
   </div>
 
   <div class="container">
-
     <div class="top-panel">
       <label>Tipo de usuario</label><br>
       <select id="tipoUsuario">
@@ -256,39 +67,27 @@
       <br>
 
       <label>Buscar producto</label><br>
-      <input id="buscarProducto" type="text" placeholder="Buscar producto o escanear código..." oninput="mostrarProductos()">
+      <input id="buscarProducto" type="text" placeholder="Buscar producto..." oninput="mostrarProductos()">
 
       <button onclick="limpiarBusqueda()">Limpiar</button>
-      <button onclick="iniciarEscaner()">📷 Escanear producto</button>
-      <button class="btn-red" onclick="detenerEscaner()">Cerrar cámara</button>
+      <button class="btn-green" onclick="activarModoVoz()">🎤 Activar modo voz</button>
+      <button class="btn-dark" onclick="desactivarModoVoz()">Apagar voz</button>
 
-      <div id="scanner"></div>
       <div id="mensaje" class="mensaje"></div>
-      <div id="asignarBarcode" style="display:none; margin-top:15px; background:#eaf2ff; padding:15px; border-radius:12px;">
-  <h3>Asignar código de barras</h3>
-
-  <p><strong>Código leído:</strong> <span id="codigoLeido"></span></p>
-
-  <label>Selecciona producto</label><br>
-  <select id="productoParaBarcode"></select>
-
-  <br><br>
-
-  <button onclick="guardarBarcode()">Guardar código</button>
-</div>
+      <div id="vozEstado" class="voz-activa">🎤 Modo voz activo</div>
     </div>
 
     <div class="layout">
-
       <div class="productos-box">
         <h2>Productos</h2>
-<div class="categorias">
-  <button onclick="filtrarCategoria('Todos')" id="cat-Todos" class="activo">Todos</button>
-  <button onclick="filtrarCategoria('Abarrotes')" id="cat-Abarrotes">Abarrotes</button>
-  <button onclick="filtrarCategoria('Sabritas')" id="cat-Sabritas">Sabritas</button>
-  <button onclick="filtrarCategoria('Galletas')" id="cat-Galletas">Galletas</button>
-  <button onclick="filtrarCategoria('Dulces')" id="cat-Dulces">Dulces</button>
-</div>
+
+        <div class="categorias">
+          <button onclick="filtrarCategoria('Todos')" id="cat-Todos" class="activo">Todos</button>
+          <button onclick="filtrarCategoria('Abarrotes')" id="cat-Abarrotes">Abarrotes</button>
+          <button onclick="filtrarCategoria('Sabritas')" id="cat-Sabritas">Sabritas</button>
+          <button onclick="filtrarCategoria('Galletas')" id="cat-Galletas">Galletas</button>
+          <button onclick="filtrarCategoria('Dulces')" id="cat-Dulces">Dulces</button>
+        </div>
 
         <div id="productos" class="productos-grid"></div>
       </div>
@@ -300,34 +99,41 @@
         </div>
 
         <div id="pedido"></div>
-
         <div class="total" id="total">Total: $0.00</div>
 
         <button onclick="crearFactura()">Crear factura</button>
         <button class="btn-dark" onclick="vaciarPedido()">Vaciar pedido</button>
         <button class="btn-dark" onclick="nuevoPedido()">Nuevo pedido</button>
       </div>
-
     </div>
   </div>
 
-<script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
-
   <script>
     let productos = [];
+    let clientes = [];
     let pedido = [];
     let categoriaActual = "Todos";
-    let scannerActivo = false;
-let barcodes = [];
-let ultimoCodigoEscaneado = "";
+    let productoSeleccionadoVoz = null;
+    let reconocimiento = null;
+
+    const categorias = {
+      Todos: [],
+      Abarrotes: ["aceite", "salsa", "mayonesa", "knorr", "frijol", "arroz", "harina", "atun", "atún", "enlatado", "flete"],
+      Sabritas: ["sabritas", "doritos", "cheetos", "ruffles", "paquetaxo", "paquetazo", "sabriton", "crujitos", "chips"],
+      Galletas: ["galleta", "galletas", "gamesa", "oreo", "emperador", "florentina", "marías", "marias"],
+      Dulces: ["dulce", "dulces", "paleta", "chicle", "chocolate", "caramelo", "gomita", "mazapan", "mazapán"]
+    };
+
     async function cargarDatos() {
-      const barcodesRes = await fetch("/barcodes");
-barcodes = await barcodesRes.json();
-console.log("BARCODES:", barcodes);
       try {
         const clientesRes = await fetch("/clientes");
         const dataClientes = await clientesRes.json();
-        const clientes = dataClientes.QueryResponse?.Customer || [];
+
+        if (!clientesRes.ok) {
+          throw new Error(dataClientes.detalle || dataClientes.error || "Error cargando clientes");
+        }
+
+        clientes = dataClientes.QueryResponse?.Customer || [];
 
         const clienteSelect = document.getElementById("cliente");
         clienteSelect.innerHTML = "";
@@ -336,33 +142,27 @@ console.log("BARCODES:", barcodes);
           clienteSelect.innerHTML = `<option value="">No hay clientes</option>`;
         } else {
           clientes.forEach(c => {
-            clienteSelect.innerHTML += `
-              <option value="${c.Id}">
-                ${c.DisplayName || c.FullyQualifiedName || "Cliente sin nombre"}
-              </option>
-            `;
+            const option = document.createElement("option");
+            option.value = c.Id;
+            option.textContent = c.DisplayName || c.FullyQualifiedName || "Cliente sin nombre";
+            clienteSelect.appendChild(option);
           });
         }
 
         const productosRes = await fetch("/productos");
         const dataProductos = await productosRes.json();
+
+        if (!productosRes.ok) {
+          throw new Error(dataProductos.detalle || dataProductos.error || "Error cargando productos");
+        }
+
         productos = dataProductos.QueryResponse?.Item || [];
-const selectBarcode = document.getElementById("productoParaBarcode");
-
-selectBarcode.innerHTML = "";
-
-productos.forEach(p => {
-  const option = document.createElement("option");
-  option.value = p.Id;
-  option.textContent = p.Name;
-  selectBarcode.appendChild(option);
-});
         mostrarProductos();
         mostrarPedido();
 
       } catch (error) {
         console.log("ERROR CARGANDO DATOS:", error);
-        alert("Error cargando clientes o productos. Revisa que server.js esté corriendo.");
+        mostrarMensaje("Error cargando clientes o productos. Revisa QuickBooks o reconecta en /connect-qbo");
       }
     }
 
@@ -374,18 +174,44 @@ productos.forEach(p => {
       return Number(p.UnitPrice || 0);
     }
 
-    function obtenerCodigoProducto(p) {
-      return String(p.Sku || p.SKU || p.sku || p.Id || "").trim();
+    function obtenerDescripcionProducto(p) {
+      return p.Description || p.PurchaseDesc || p.SalesDescription || obtenerNombreProducto(p);
+    }
+
+    function limpiarNombreArchivo(nombre) {
+      return String(nombre || "")
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    function obtenerImagenProducto(p) {
+      const nombre = limpiarNombreArchivo(obtenerNombreProducto(p));
+      return `images/productos/${nombre}.jpg`;
     }
 
     function mostrarMensaje(texto) {
       const mensaje = document.getElementById("mensaje");
       mensaje.innerText = texto;
       mensaje.style.display = "block";
+      setTimeout(() => { mensaje.style.display = "none"; }, 3500);
+    }
 
-      setTimeout(() => {
-        mensaje.style.display = "none";
-      }, 3000);
+    function hablar(texto) {
+      try {
+        if (!("speechSynthesis" in window)) return;
+        const voz = new SpeechSynthesisUtterance(texto);
+        voz.lang = "es-MX";
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(voz);
+      } catch (e) {}
+    }
+
+    function productoEnCategoria(p, categoria) {
+      if (categoria === "Todos") return true;
+      const nombre = obtenerNombreProducto(p).toLowerCase();
+      return categorias[categoria].some(palabra => nombre.includes(palabra));
     }
 
     function mostrarProductos() {
@@ -396,16 +222,10 @@ productos.forEach(p => {
 
       const filtrados = productos.filter(p => {
         const nombre = obtenerNombreProducto(p).toLowerCase();
-        const codigo = obtenerCodigoProducto(p).toLowerCase();
+        const sku = String(p.Sku || p.SKU || p.sku || "").toLowerCase();
 
-        const coincideBusqueda =
-          !buscar ||
-          nombre.includes(buscar) ||
-          codigo.includes(buscar);
-
-        const coincideCategoria =
-          categoriaActual === "Todos" ||
-          nombre.includes(categoriaActual.toLowerCase());
+        const coincideBusqueda = !buscar || nombre.includes(buscar) || sku.includes(buscar);
+        const coincideCategoria = productoEnCategoria(p, categoriaActual);
 
         return coincideBusqueda && coincideCategoria;
       });
@@ -418,13 +238,14 @@ productos.forEach(p => {
       filtrados.forEach(p => {
         const nombre = obtenerNombreProducto(p);
         const precio = obtenerPrecioProducto(p);
+        const imagen = obtenerImagenProducto(p);
 
         const card = document.createElement("div");
         card.className = "producto";
         card.id = "producto-" + p.Id;
 
         card.innerHTML = `
-          <img src="images/default.png" onerror="this.src='images/default.png'" alt="${nombre}">
+          <img src="${imagen}" onerror="this.src='images/default.png'" alt="${nombre}">
           <h3>${nombre}</h3>
           <p>$${precio.toFixed(2)}</p>
         `;
@@ -434,202 +255,25 @@ productos.forEach(p => {
       });
     }
 
-    function agregarProducto(producto) {
-      const id = producto.Id;
+    function agregarProducto(producto, cantidad = 1) {
+      const id = String(producto.Id);
       const nombre = obtenerNombreProducto(producto);
       const precio = obtenerPrecioProducto(producto);
+      const descripcion = obtenerDescripcionProducto(producto);
 
       const existente = pedido.find(p => p.id === id);
 
       if (existente) {
-        existente.cantidad++;
+        existente.cantidad += cantidad;
       } else {
-        pedido.push({
-          id: id,
-          nombre: nombre,
-          precio: precio,
-          cantidad: 1
-        });
+        pedido.push({ id, nombre, precio, descripcion, cantidad });
       }
 
+      productoSeleccionadoVoz = producto;
       mostrarPedido();
       mostrarMensaje("Producto agregado: " + nombre);
     }
 
-    function buscarPorCodigo(codigo) {
-      const codigoLimpio = String(codigo || "").trim();
-
-      if (!codigoLimpio) return;
-
-      document.getElementById("buscarProducto").value = codigoLimpio;
-      mostrarProductos();
-
-      const producto = productos.find(p => {
-        const sku = obtenerCodigoProducto(p);
-        const nombre = obtenerNombreProducto(p);
-
-        return (
-          sku === codigoLimpio ||
-          String(p.Id || "") === codigoLimpio ||
-          nombre.toLowerCase().includes(codigoLimpio.toLowerCase())
-        );
-      });
-
-    if (!producto) {
-  ultimoCodigoEscaneado = codigoLimpio;
-
-  document.getElementById("codigoLeido").innerText = codigoLimpio;
-  document.getElementById("asignarBarcode").style.display = "block";
-
-  mostrarMensaje("Código nuevo. Selecciona el producto correcto y guárdalo.");
-  return;
-}
-
-      agregarProducto(producto);
-    }
-
-    async function iniciarEscaner() {
-      const scannerDiv = document.getElementById("scanner");
-
-      scannerDiv.style.display = "block";
-      scannerDiv.innerHTML = "";
-
-      if (scannerActivo) {
-        mostrarMensaje("La cámara ya está activa.");
-        return;
-      }
-
-      if (typeof Quagga === "undefined") {
-        alert("No se cargó la librería Quagga. Revisa internet o HTTPS.");
-        return;
-      }
-
-      try {
-        Quagga.init({
-          inputStream: {
-            type: "LiveStream",
-            target: scannerDiv,
-  constraints: {
-    facingMode: {
-        exact: "environment"
-    },
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-},
-            
-          },
-          locator: {
-            patchSize: "large",
-            halfSample: false
-          },
-          numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
-          frequency: 5,
-          decoder: {
-            readers: [
-              "ean_reader",
-              "upc_reader",
-              "upc_e_reader",
-              
-            ]
-          },
-          locate: true
-        }, function(err) {
-          if (err) {
-            console.log("ERROR QUAGGA INIT:", err);
-            alert("No se pudo abrir la cámara con Quagga.");
-            scannerDiv.style.display = "none";
-            return;
-          }
-
-          Quagga.start();
-          scannerActivo = true;
-          mostrarMensaje("Cámara lista para escanear.");
-        });
-
-        Quagga.offDetected();
-
-        Quagga.onDetected(function(result) {
-          const codigo = result?.codeResult?.code;
-
-          if (!codigo) return;
-if (codigo.length < 12) return;
-          alert("Código leído: " + codigo);
-
-          detenerEscaner();
-          buscarPorCodigo(codigo);
-        });
-
-      } catch (error) {
-        console.log("ERROR ESCÁNER:", error);
-        alert("No se pudo abrir la cámara. En celular puede requerir HTTPS.");
-        scannerDiv.style.display = "none";
-      }
-    }
-
-    function detenerEscaner() {
-      const scannerDiv = document.getElementById("scanner");
-
-      try {
-        if (scannerActivo && typeof Quagga !== "undefined") {
-          Quagga.stop();
-        }
-      } catch (error) {
-        console.log("ERROR CERRANDO ESCÁNER:", error);
-      }
-
-      scannerActivo = false;
-      scannerDiv.innerHTML = "";
-      scannerDiv.style.display = "none";
-    }
-async function guardarBarcode() {
-  const codigo = ultimoCodigoEscaneado;
-  const productoId = document.getElementById("productoParaBarcode").value;
-
-  if (!codigo) {
-    alert("No hay código escaneado.");
-    return;
-  }
-
-  if (!productoId) {
-    alert("Selecciona un producto.");
-    return;
-  }
-
-  const producto = productos.find(p => String(p.Id) === String(productoId));
-
-  if (!producto) {
-    alert("Producto no encontrado.");
-    return;
-  }
-
-  const nuevoBarcode = {
-    barcode: codigo,
-    itemId: producto.Id,
-    itemName: producto.Name
-  };
-
-  const res = await fetch("/barcodes", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(nuevoBarcode)
-  });
-
-  if (!res.ok) {
-    alert("Error guardando código.");
-    return;
-  }
-
-  barcodes.push(nuevoBarcode);
-
-  document.getElementById("asignarBarcode").style.display = "none";
-  document.getElementById("buscarProducto").value = "";
-
-  agregarProducto(producto);
-
-  alert("Código guardado correctamente.");
-}
     function mostrarPedido() {
       const divPedido = document.getElementById("pedido");
       const totalDiv = document.getElementById("total");
@@ -650,7 +294,6 @@ async function guardarBarcode() {
             <strong>${item.nombre}</strong><br>
             Cantidad: ${item.cantidad}<br>
             Subtotal: $${subtotal.toFixed(2)}
-
             <div class="pedido-controles">
               <button onclick="restarProducto('${item.id}')">-</button>
               <button onclick="sumarProducto('${item.id}')">+</button>
@@ -674,9 +317,7 @@ async function guardarBarcode() {
       const item = pedido.find(p => p.id === id);
       if (item) {
         item.cantidad--;
-        if (item.cantidad <= 0) {
-          pedido = pedido.filter(p => p.id !== id);
-        }
+        if (item.cantidad <= 0) pedido = pedido.filter(p => p.id !== id);
       }
       mostrarPedido();
     }
@@ -694,6 +335,7 @@ async function guardarBarcode() {
     function nuevoPedido() {
       pedido = [];
       document.getElementById("buscarProducto").value = "";
+      productoSeleccionadoVoz = null;
       mostrarPedido();
       mostrarProductos();
     }
@@ -705,19 +347,16 @@ async function guardarBarcode() {
 
     function filtrarCategoria(categoria) {
       categoriaActual = categoria;
-
-      document.querySelectorAll(".categorias button").forEach(btn => {
-        btn.classList.remove("activo");
-      });
-
+      document.querySelectorAll(".categorias button").forEach(btn => btn.classList.remove("activo"));
       const boton = document.getElementById("cat-" + categoria);
       if (boton) boton.classList.add("activo");
-
       mostrarProductos();
     }
 
     async function crearFactura() {
+      const tipoUsuario = document.getElementById("tipoUsuario").value;
       const clienteId = document.getElementById("cliente").value;
+      const clienteTexto = document.getElementById("cliente").selectedOptions[0]?.textContent || "";
 
       if (!clienteId) {
         alert("Selecciona un cliente.");
@@ -729,20 +368,25 @@ async function guardarBarcode() {
         return;
       }
 
+      if (tipoUsuario === "cliente") {
+        await guardarPedidoPendiente(clienteId, clienteTexto);
+        return;
+      }
+
+      if (!confirm("¿Crear factura en QuickBooks?")) return;
+
       try {
         const res = await fetch("/crear-factura", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             customerId: clienteId,
             items: pedido.map(p => ({
               itemId: p.id,
               id: p.id,
               name: p.nombre,
+              description: p.descripcion,
               qty: p.cantidad,
-              quantity: p.cantidad,
               unitPrice: p.precio,
               amount: Number((p.precio * p.cantidad).toFixed(2))
             }))
@@ -758,6 +402,7 @@ async function guardarBarcode() {
         }
 
         alert("Factura creada correctamente.");
+        hablar("Factura creada correctamente.");
         pedido = [];
         mostrarPedido();
 
@@ -767,8 +412,127 @@ async function guardarBarcode() {
       }
     }
 
+    async function guardarPedidoPendiente(clienteId, clienteNombre) {
+      try {
+        const res = await fetch("/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerId: clienteId,
+            customerName: clienteNombre,
+            items: pedido
+          })
+        });
+
+        if (!res.ok) {
+          alert("Error guardando pedido.");
+          return;
+        }
+
+        alert("Pedido enviado para aprobación.");
+        hablar("Pedido enviado para aprobación.");
+        pedido = [];
+        mostrarPedido();
+      } catch (error) {
+        alert("Error enviando pedido.");
+      }
+    }
+
+    function activarModoVoz() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        alert("Este navegador no soporta modo voz. Usa Chrome.");
+        return;
+      }
+
+      reconocimiento = new SpeechRecognition();
+      reconocimiento.lang = "es-MX";
+      reconocimiento.continuous = true;
+      reconocimiento.interimResults = false;
+
+      reconocimiento.onresult = (event) => {
+        const texto = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+        procesarComandoVoz(texto);
+      };
+
+      reconocimiento.onerror = (event) => {
+        console.log("ERROR VOZ:", event.error);
+      };
+
+      reconocimiento.start();
+      document.getElementById("vozEstado").style.display = "block";
+      hablar("Modo voz activado.");
+    }
+
+    function desactivarModoVoz() {
+      if (reconocimiento) reconocimiento.stop();
+      document.getElementById("vozEstado").style.display = "none";
+      hablar("Modo voz apagado.");
+    }
+
+    function procesarComandoVoz(texto) {
+      mostrarMensaje("Voz: " + texto);
+
+      if (texto.startsWith("buscar ")) {
+        const busqueda = texto.replace("buscar ", "").trim();
+        document.getElementById("buscarProducto").value = busqueda;
+        mostrarProductos();
+
+        const encontrado = productos.find(p => obtenerNombreProducto(p).toLowerCase().includes(busqueda));
+        productoSeleccionadoVoz = encontrado || null;
+
+        if (encontrado) hablar("Encontré " + obtenerNombreProducto(encontrado) + ". Di agregar y la cantidad.");
+        else hablar("No encontré el producto.");
+        return;
+      }
+
+      if (texto.startsWith("agregar ")) {
+        const numeroTexto = texto.replace("agregar ", "").trim();
+        const cantidad = convertirNumero(numeroTexto);
+
+        if (!productoSeleccionadoVoz) {
+          hablar("Primero busca un producto.");
+          return;
+        }
+
+        agregarProducto(productoSeleccionadoVoz, cantidad);
+        hablar("Agregado " + cantidad);
+        return;
+      }
+
+      if (texto === "total") {
+        const total = pedido.reduce((sum, p) => sum + (p.precio * p.cantidad), 0);
+        hablar("El total es " + total.toFixed(2) + " dólares.");
+        return;
+      }
+
+      if (texto.includes("vaciar")) {
+        vaciarPedido();
+        hablar("Pedido vacío.");
+        return;
+      }
+
+      if (texto.includes("crear factura") || texto.includes("enviar factura")) {
+        crearFactura();
+        return;
+      }
+    }
+
+    function convertirNumero(texto) {
+      const mapa = {
+        uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
+        seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
+        once: 11, doce: 12, quince: 15, veinte: 20
+      };
+
+      if (mapa[texto]) return mapa[texto];
+
+      const numero = parseInt(texto.replace(/\D/g, ""), 10);
+      return Number.isFinite(numero) && numero > 0 ? numero : 1;
+    }
+
     cargarDatos();
   </script>
-
 </body>
 </html>
