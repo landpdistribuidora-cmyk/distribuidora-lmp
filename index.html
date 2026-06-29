@@ -245,7 +245,7 @@
         card.id = "producto-" + p.Id;
 
         card.innerHTML = `
-          <img src="${imagen}" onerror="this.src='images/default.png'" alt="${nombre}">
+        <img src="${imagen}" alt="${nombre}" onerror="this.onerror=null; this.src='images/logo-nuevo.jpg';">
           <h3>${nombre}</h3>
           <p>$${precio.toFixed(2)}</p>
         `;
