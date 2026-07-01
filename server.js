@@ -588,14 +588,15 @@ app.post("/crear-factura", async (req, res) => {
       );
 
       const descripcion =
-        productoQB.SalesDescription ||
-        productoQB.Description ||
-        productoQB.PurchaseDesc ||
-        item.description ||
-        item.descripcion ||
-        productoQB.Name ||
-        item.name ||
-        "";
+  productoQB.Description ||
+  productoQB.SalesDescription ||
+  productoQB.PurchaseDesc ||
+  productoQB.FullyQualifiedName ||
+  productoQB.Name ||
+  item.description ||
+  item.descripcion ||
+  item.name ||
+  "";
 
       lineas.push({
         DetailType: "SalesItemLineDetail",
