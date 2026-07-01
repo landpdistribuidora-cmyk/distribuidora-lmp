@@ -17,6 +17,8 @@
     .btn-dark { background: #1f2937; }
     .btn-red { background: #dc2626; }
     .btn-green { background: #16a34a; }
+    .btn-purple { background: #7c3aed; }
+    .btn-yellow { background: #f59e0b; color: #111827; }
     .layout { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; }
     .categorias button { background: white; color: #1d4ed8; border: 2px solid #1d4ed8; }
     .categorias button.activo { background: #1d4ed8; color: white; }
@@ -32,8 +34,10 @@
     .pedido-item { border-left: 5px solid #1d4ed8; padding: 10px; margin-bottom: 12px; background: #f8fafc; border-radius: 12px; }
     .pedido-controles button { padding: 8px 13px; border-radius: 10px; }
     .total { font-size: 32px; color: #1d4ed8; font-weight: bold; text-align: center; background: #eaf2ff; padding: 18px; border-radius: 18px; margin: 20px 0; }
-    .mensaje { background: #eaf2ff; color: #1d4ed8; padding: 12px; border-radius: 12px; margin-top: 10px; font-weight: bold; display: none; }
+    .mensaje { background: #eaf2ff; color: #1d4ed8; padding: 12px; border-radius: 12px; margin-top: 10px; font-weight: bold; display: none; white-space: pre-wrap; }
     .voz-activa { background: #dcfce7; color: #166534; padding: 12px; border-radius: 12px; margin-top: 10px; font-weight: bold; display: none; }
+    .cliente-info { background: #f8fafc; border-left: 5px solid #16a34a; padding: 10px; border-radius: 12px; margin: 5px 0 18px; }
+    .small { font-size: 14px; color: #4b5563; }
     @media(max-width: 900px) {
       .container { padding: 12px; }
       .layout { grid-template-columns: 1fr; }
@@ -46,11 +50,16 @@
 
 <body>
   <div class="header">
-<img src="images/logo-nuevo.jpg" alt="Distribuidora L&P" class="logo">
+    <img src="images/logo-nuevo.jpg" alt="Distribuidora L&P" class="logo">
   </div>
 
   <div class="container">
     <div class="top-panel">
+      <button class="btn-purple" onclick="window.open('/connect-qbo', '_blank')">Conectar QuickBooks</button>
+      <button class="btn-dark" onclick="cargarDatos()">Recargar datos</button>
+
+      <br><br>
+
       <label>Tipo de usuario</label><br>
       <select id="tipoUsuario">
         <option value="empleado">Empleado</option>
@@ -60,21 +69,26 @@
       <br>
 
       <label>Cliente / Tienda</label><br>
-      <select id="cliente">
+      <input id="buscarCliente" type="text" placeholder="Buscar cliente por nombre..." oninput="filtrarClientesPorTexto()">
+      <button class="btn-green" onclick="escucharCliente()">🎤 Decir cliente</button>
+      <select id="cliente" onchange="actualizarClienteSeleccionado()">
         <option value="">Cargando clientes...</option>
       </select>
-
-      <br>
+      <div id="clienteInfo" class="cliente-info">Cliente seleccionado: ninguno</div>
 
       <label>Buscar producto</label><br>
       <input id="buscarProducto" type="text" placeholder="Buscar producto..." oninput="mostrarProductos()">
+      <button class="btn-green" onclick="escucharProducto()">🎤 Decir producto</button>
+      <button class="btn-yellow" onclick="escucharCantidad()">🎤 Decir cantidad</button>
+      <input id="cantidadProducto" type="number" min="1" value="1" style="width:120px; min-width:120px;">
 
-      <button onclick="limpiarBusqueda()">Limpiar</button>
-      <button class="btn-green" onclick="activarModoVoz()">🎤 Activar modo voz</button>
+      <br>
+      <button onclick="limpiarBusqueda()">Limpiar producto</button>
+      <button class="btn-green" onclick="activarModoVoz()">🎤 Activar modo voz completo</button>
       <button class="btn-dark" onclick="desactivarModoVoz()">Apagar voz</button>
 
       <div id="mensaje" class="mensaje"></div>
-      <div id="vozEstado" class="voz-activa">🎤 Modo voz activo</div>
+      <div id="vozEstado" class="voz-activa">🎤 Modo voz activo. Puedes decir: cliente La Esperanza, buscar Coca, agregar 5, total, crear factura.</div>
     </div>
 
     <div class="layout">
@@ -104,6 +118,7 @@
         <button onclick="crearFactura()">Crear factura</button>
         <button class="btn-dark" onclick="vaciarPedido()">Vaciar pedido</button>
         <button class="btn-dark" onclick="nuevoPedido()">Nuevo pedido</button>
+        <p class="small">Al crear factura, el sistema intenta enviar copia al correo del cliente y al correo del jefe configurado en .env.</p>
       </div>
     </div>
   </div>
@@ -111,10 +126,12 @@
   <script>
     let productos = [];
     let clientes = [];
+    let clientesFiltrados = [];
     let pedido = [];
     let categoriaActual = "Todos";
     let productoSeleccionadoVoz = null;
     let reconocimiento = null;
+    let barcodes = [];
 
     const categorias = {
       Todos: [],
@@ -126,44 +143,126 @@
 
     async function cargarDatos() {
       try {
+        mostrarMensaje("Cargando clientes y productos desde QuickBooks...");
+
         const clientesRes = await fetch("/clientes");
         const dataClientes = await clientesRes.json();
+        if (!clientesRes.ok) throw new Error(dataClientes.detalle || dataClientes.error || "Error cargando clientes");
 
-        if (!clientesRes.ok) {
-          throw new Error(dataClientes.detalle || dataClientes.error || "Error cargando clientes");
-        }
-
-        clientes = dataClientes.QueryResponse?.Customer || [];
-
-        const clienteSelect = document.getElementById("cliente");
-        clienteSelect.innerHTML = "";
-
-        if (clientes.length === 0) {
-          clienteSelect.innerHTML = `<option value="">No hay clientes</option>`;
-        } else {
-          clientes.forEach(c => {
-            const option = document.createElement("option");
-            option.value = c.Id;
-            option.textContent = c.DisplayName || c.FullyQualifiedName || "Cliente sin nombre";
-            clienteSelect.appendChild(option);
-          });
-        }
+        clientes = dataClientes.clientes || dataClientes.QueryResponse?.Customer || [];
+        clientes = clientes.map(c => ({
+          id: c.id || c.Id,
+          nombre: c.nombre || c.DisplayName || c.FullyQualifiedName || c.CompanyName || "Cliente sin nombre",
+          email: c.email || c.PrimaryEmailAddr?.Address || "",
+          raw: c.raw || c
+        }));
+        clientesFiltrados = clientes;
+        llenarSelectClientes(clientes);
 
         const productosRes = await fetch("/productos");
         const dataProductos = await productosRes.json();
+        if (!productosRes.ok) throw new Error(dataProductos.detalle || dataProductos.error || "Error cargando productos");
 
-        if (!productosRes.ok) {
-          throw new Error(dataProductos.detalle || dataProductos.error || "Error cargando productos");
+        productos = dataProductos.productos || dataProductos.QueryResponse?.Item || [];
+        productos = productos.map(p => ({
+          id: p.id || p.Id,
+          Id: p.id || p.Id,
+          Name: p.nombre || p.Name || p.FullyQualifiedName || "Producto sin nombre",
+          FullyQualifiedName: p.nombre || p.Name || p.FullyQualifiedName || "Producto sin nombre",
+          Description: p.descripcion || p.Description || "",
+          UnitPrice: Number(p.precio ?? p.UnitPrice ?? 0),
+          Sku: p.sku || p.Sku || p.SKU || "",
+          raw: p.raw || p
+        }));
+
+        try {
+          const barcodesRes = await fetch("/barcodes");
+          barcodes = await barcodesRes.json();
+        } catch (e) {
+          barcodes = [];
         }
 
-        productos = dataProductos.QueryResponse?.Item || [];
         mostrarProductos();
         mostrarPedido();
-
+        actualizarClienteSeleccionado();
+        mostrarMensaje(`Listo. Clientes: ${clientes.length}. Productos: ${productos.length}.`);
       } catch (error) {
         console.log("ERROR CARGANDO DATOS:", error);
-        mostrarMensaje("Error cargando clientes o productos. Revisa QuickBooks o reconecta en /connect-qbo");
+        mostrarMensaje("Error cargando clientes o productos. Revisa QuickBooks o reconecta en /connect-qbo\n" + error.message);
       }
+    }
+
+    function llenarSelectClientes(lista) {
+      const clienteSelect = document.getElementById("cliente");
+      clienteSelect.innerHTML = "";
+
+      if (!lista.length) {
+        clienteSelect.innerHTML = `<option value="">No hay clientes</option>`;
+        return;
+      }
+
+      lista.forEach(c => {
+        const option = document.createElement("option");
+        option.value = c.id;
+        option.textContent = c.email ? `${c.nombre} - ${c.email}` : c.nombre;
+        option.dataset.nombre = c.nombre;
+        option.dataset.email = c.email || "";
+        clienteSelect.appendChild(option);
+      });
+    }
+
+    function obtenerClienteSeleccionado() {
+      const clienteId = document.getElementById("cliente").value;
+      return clientes.find(c => String(c.id) === String(clienteId)) || null;
+    }
+
+    function actualizarClienteSeleccionado() {
+      const cliente = obtenerClienteSeleccionado();
+      const info = document.getElementById("clienteInfo");
+      if (!cliente) {
+        info.innerText = "Cliente seleccionado: ninguno";
+        return;
+      }
+      info.innerText = `Cliente seleccionado: ${cliente.nombre}\nCorreo cliente: ${cliente.email || "NO TIENE CORREO EN QUICKBOOKS"}`;
+    }
+
+    function normalizar(texto) {
+      return String(texto || "")
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function filtrarClientesPorTexto() {
+      const texto = normalizar(document.getElementById("buscarCliente").value);
+      if (!texto) {
+        clientesFiltrados = clientes;
+      } else {
+        clientesFiltrados = clientes.filter(c => normalizar(`${c.nombre} ${c.email}`).includes(texto));
+      }
+      llenarSelectClientes(clientesFiltrados.slice(0, 50));
+      actualizarClienteSeleccionado();
+    }
+
+    function seleccionarClientePorTexto(texto) {
+      const limpio = normalizar(texto.replace(/^cliente\s+/, "").replace(/^tienda\s+/, ""));
+      const encontrado = clientes.find(c => normalizar(c.nombre).includes(limpio));
+
+      if (!encontrado) {
+        document.getElementById("buscarCliente").value = texto;
+        filtrarClientesPorTexto();
+        hablar("No encontré ese cliente. Revisa la lista.");
+        return null;
+      }
+
+      document.getElementById("buscarCliente").value = encontrado.nombre;
+      llenarSelectClientes([encontrado]);
+      document.getElementById("cliente").value = encontrado.id;
+      actualizarClienteSeleccionado();
+      hablar("Cliente seleccionado: " + encontrado.nombre);
+      return encontrado;
     }
 
     function obtenerNombreProducto(p) {
@@ -195,7 +294,8 @@
       const mensaje = document.getElementById("mensaje");
       mensaje.innerText = texto;
       mensaje.style.display = "block";
-      setTimeout(() => { mensaje.style.display = "none"; }, 3500);
+      clearTimeout(mensaje.timer);
+      mensaje.timer = setTimeout(() => { mensaje.style.display = "none"; }, 4500);
     }
 
     function hablar(texto) {
@@ -216,75 +316,75 @@
 
     function mostrarProductos() {
       const divProductos = document.getElementById("productos");
-      const buscar = document.getElementById("buscarProducto").value.toLowerCase().trim();
-
+      const buscar = normalizar(document.getElementById("buscarProducto").value);
       divProductos.innerHTML = "";
 
       const filtrados = productos.filter(p => {
-        const nombre = obtenerNombreProducto(p).toLowerCase();
-        const sku = String(p.Sku || p.SKU || p.sku || "").toLowerCase();
-
-        const coincideBusqueda = !buscar || nombre.includes(buscar) || sku.includes(buscar);
+        const nombre = normalizar(obtenerNombreProducto(p));
+        const descripcion = normalizar(obtenerDescripcionProducto(p));
+        const sku = normalizar(p.Sku || p.SKU || p.sku || "");
+        const coincideBusqueda = !buscar || nombre.includes(buscar) || descripcion.includes(buscar) || sku.includes(buscar);
         const coincideCategoria = productoEnCategoria(p, categoriaActual);
-
         return coincideBusqueda && coincideCategoria;
       });
 
+      if (filtrados.length === 1) productoSeleccionadoVoz = filtrados[0];
+
       if (filtrados.length === 0) {
         divProductos.innerHTML = `<p>No se encontraron productos.</p>`;
+        productoSeleccionadoVoz = null;
         return;
       }
 
-      filtrados.forEach(p => {
+      filtrados.slice(0, 100).forEach(p => {
         const nombre = obtenerNombreProducto(p);
         const precio = obtenerPrecioProducto(p);
         const imagen = obtenerImagenProducto(p);
-
         const card = document.createElement("div");
         card.className = "producto";
         card.id = "producto-" + p.Id;
-
         card.innerHTML = `
-        <img src="${imagen}" alt="${nombre}" onerror="this.onerror=null; this.src='images/logo-nuevo.jpg';">
+          <img src="${imagen}" alt="${nombre}" onerror="this.onerror=null; this.src='images/logo-nuevo.jpg';">
           <h3>${nombre}</h3>
           <p>$${precio.toFixed(2)}</p>
         `;
-
-        card.onclick = () => agregarProducto(p);
+        card.onclick = () => agregarProducto(p, Number(document.getElementById("cantidadProducto").value || 1));
         divProductos.appendChild(card);
       });
     }
 
     function agregarProducto(producto, cantidad = 1) {
-      const id = String(producto.Id);
+      cantidad = Number(cantidad || 1);
+      if (!Number.isFinite(cantidad) || cantidad <= 0) cantidad = 1;
+
+      const id = String(producto.Id || producto.id);
       const nombre = obtenerNombreProducto(producto);
       const precio = obtenerPrecioProducto(producto);
       const descripcion = obtenerDescripcionProducto(producto);
-
       const existente = pedido.find(p => p.id === id);
 
-      if (existente) {
-        existente.cantidad += cantidad;
-      } else {
-        pedido.push({ id, nombre, precio, descripcion, cantidad });
-      }
+      if (existente) existente.cantidad += cantidad;
+      else pedido.push({ id, itemId: id, nombre, name: nombre, precio, unitPrice: precio, descripcion, cantidad, qty: cantidad });
 
       productoSeleccionadoVoz = producto;
+      document.getElementById("cantidadProducto").value = 1;
       mostrarPedido();
-      mostrarMensaje("Producto agregado: " + nombre);
+      mostrarMensaje("Producto agregado: " + cantidad + " x " + nombre);
+      hablar("Agregado " + cantidad + " de " + nombre);
     }
 
     function mostrarPedido() {
       const divPedido = document.getElementById("pedido");
       const totalDiv = document.getElementById("total");
       const contador = document.getElementById("contador");
-
       divPedido.innerHTML = "";
 
       let total = 0;
       let cantidadTotal = 0;
 
       pedido.forEach(item => {
+        item.qty = item.cantidad;
+        item.unitPrice = item.precio;
         const subtotal = Number(item.precio || 0) * Number(item.cantidad || 0);
         total += subtotal;
         cantidadTotal += item.cantidad;
@@ -330,18 +430,25 @@
     function vaciarPedido() {
       pedido = [];
       mostrarPedido();
+      hablar("Pedido vacío.");
     }
 
     function nuevoPedido() {
       pedido = [];
       document.getElementById("buscarProducto").value = "";
+      document.getElementById("buscarCliente").value = "";
       productoSeleccionadoVoz = null;
+      clientesFiltrados = clientes;
+      llenarSelectClientes(clientes);
+      actualizarClienteSeleccionado();
       mostrarPedido();
       mostrarProductos();
+      hablar("Nuevo pedido.");
     }
 
     function limpiarBusqueda() {
       document.getElementById("buscarProducto").value = "";
+      productoSeleccionadoVoz = null;
       mostrarProductos();
     }
 
@@ -355,32 +462,38 @@
 
     async function crearFactura() {
       const tipoUsuario = document.getElementById("tipoUsuario").value;
-      const clienteId = document.getElementById("cliente").value;
-      const clienteTexto = document.getElementById("cliente").selectedOptions[0]?.textContent || "";
+      const cliente = obtenerClienteSeleccionado();
 
-      if (!clienteId) {
+      if (!cliente) {
         alert("Selecciona un cliente.");
+        hablar("Selecciona un cliente.");
         return;
       }
 
       if (pedido.length === 0) {
         alert("Agrega productos al pedido.");
+        hablar("Agrega productos al pedido.");
         return;
       }
 
       if (tipoUsuario === "cliente") {
-        await guardarPedidoPendiente(clienteId, clienteTexto);
+        await guardarPedidoPendiente(cliente.id, cliente.nombre);
         return;
       }
 
-      if (!confirm("¿Crear factura en QuickBooks?")) return;
+      if (!confirm("¿Crear factura en QuickBooks y enviar copia al cliente y al jefe?")) return;
 
       try {
+        mostrarMensaje("Creando factura y enviando correos...");
+
         const res = await fetch("/crear-factura", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            customerId: clienteId,
+            customerId: cliente.id,
+            customerName: cliente.nombre,
+            customerEmail: cliente.email,
+            sendEmail: true,
             items: pedido.map(p => ({
               itemId: p.id,
               id: p.id,
@@ -394,21 +507,26 @@
         });
 
         const data = await res.json();
-
         if (!res.ok) {
           console.log(data);
-          alert("Error creando factura.");
+          alert("Error creando factura: " + (data.detalle || data.error || "revisa consola"));
           return;
         }
 
-        alert("Factura creada correctamente.");
-        hablar("Factura creada correctamente.");
+        const invoice = data.invoice?.Invoice || data.Invoice || {};
+        let msg = "Factura creada correctamente.";
+        if (invoice.DocNumber || invoice.Id) msg += " Factura: " + (invoice.DocNumber || invoice.Id) + ".";
+
+        if (data.emailResult?.sent) msg += " Correos enviados.";
+        else msg += " La factura se creó, pero el correo no se envió: " + (data.emailResult?.reason || "revisa .env");
+
+        alert(msg);
+        hablar(msg);
         pedido = [];
         mostrarPedido();
-
       } catch (error) {
         console.log("ERROR CREANDO FACTURA:", error);
-        alert("Error creando factura.");
+        alert("Error creando factura: " + error.message);
       }
     }
 
@@ -417,18 +535,12 @@
         const res = await fetch("/orders", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerId: clienteId,
-            customerName: clienteNombre,
-            items: pedido
-          })
+          body: JSON.stringify({ customerId: clienteId, customerName: clienteNombre, items: pedido })
         });
-
         if (!res.ok) {
           alert("Error guardando pedido.");
           return;
         }
-
         alert("Pedido enviado para aprobación.");
         hablar("Pedido enviado para aprobación.");
         pedido = [];
@@ -438,28 +550,63 @@
       }
     }
 
-    function activarModoVoz() {
+    function crearReconocedor(callback, continuous = false) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
       if (!SpeechRecognition) {
-        alert("Este navegador no soporta modo voz. Usa Chrome.");
-        return;
+        alert("Este navegador no soporta voz. Usa Chrome o Edge.");
+        return null;
       }
-
-      reconocimiento = new SpeechRecognition();
-      reconocimiento.lang = "es-MX";
-      reconocimiento.continuous = true;
-      reconocimiento.interimResults = false;
-
-      reconocimiento.onresult = (event) => {
+      const rec = new SpeechRecognition();
+      rec.lang = "es-MX";
+      rec.continuous = continuous;
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      rec.onresult = (event) => {
         const texto = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-        procesarComandoVoz(texto);
+        callback(texto);
       };
+      rec.onerror = (event) => console.log("ERROR VOZ:", event.error);
+      return rec;
+    }
 
-      reconocimiento.onerror = (event) => {
-        console.log("ERROR VOZ:", event.error);
-      };
+    function escucharCliente() {
+      const rec = crearReconocedor((texto) => {
+        mostrarMensaje("Cliente por voz: " + texto);
+        seleccionarClientePorTexto(texto);
+      });
+      if (rec) {
+        hablar("Di el nombre del cliente o tienda.");
+        rec.start();
+      }
+    }
 
+    function escucharProducto() {
+      const rec = crearReconocedor((texto) => {
+        mostrarMensaje("Producto por voz: " + texto);
+        buscarProductoPorVoz(texto);
+      });
+      if (rec) {
+        hablar("Di el nombre del producto.");
+        rec.start();
+      }
+    }
+
+    function escucharCantidad() {
+      const rec = crearReconocedor((texto) => {
+        const cantidad = convertirNumero(texto);
+        document.getElementById("cantidadProducto").value = cantidad;
+        hablar("Cantidad " + cantidad);
+      });
+      if (rec) {
+        hablar("Di la cantidad.");
+        rec.start();
+      }
+    }
+
+    function activarModoVoz() {
+      if (reconocimiento) reconocimiento.stop();
+      reconocimiento = crearReconocedor(procesarComandoVoz, true);
+      if (!reconocimiento) return;
       reconocimiento.start();
       document.getElementById("vozEstado").style.display = "block";
       hablar("Modo voz activado.");
@@ -467,41 +614,63 @@
 
     function desactivarModoVoz() {
       if (reconocimiento) reconocimiento.stop();
+      reconocimiento = null;
       document.getElementById("vozEstado").style.display = "none";
       hablar("Modo voz apagado.");
+    }
+
+    function buscarProductoPorVoz(texto) {
+      const busqueda = normalizar(texto.replace(/^buscar\s+/, "").replace(/^producto\s+/, ""));
+      document.getElementById("buscarProducto").value = busqueda;
+      mostrarProductos();
+
+      const encontrados = productos.filter(p => normalizar(`${obtenerNombreProducto(p)} ${obtenerDescripcionProducto(p)} ${p.Sku || ""}`).includes(busqueda));
+      productoSeleccionadoVoz = encontrados[0] || null;
+
+      if (encontrados.length === 1) hablar("Encontré " + obtenerNombreProducto(encontrados[0]) + ". Di agregar y la cantidad.");
+      else if (encontrados.length > 1) hablar("Encontré varios productos. Toca el correcto o di agregar para usar el primero.");
+      else hablar("No encontré el producto.");
     }
 
     function procesarComandoVoz(texto) {
       mostrarMensaje("Voz: " + texto);
 
-      if (texto.startsWith("buscar ")) {
-        const busqueda = texto.replace("buscar ", "").trim();
-        document.getElementById("buscarProducto").value = busqueda;
-        mostrarProductos();
-
-        const encontrado = productos.find(p => obtenerNombreProducto(p).toLowerCase().includes(busqueda));
-        productoSeleccionadoVoz = encontrado || null;
-
-        if (encontrado) hablar("Encontré " + obtenerNombreProducto(encontrado) + ". Di agregar y la cantidad.");
-        else hablar("No encontré el producto.");
+      if (texto.startsWith("cliente ") || texto.startsWith("tienda ")) {
+        seleccionarClientePorTexto(texto);
         return;
       }
 
-      if (texto.startsWith("agregar ")) {
-        const numeroTexto = texto.replace("agregar ", "").trim();
-        const cantidad = convertirNumero(numeroTexto);
+      if (texto.startsWith("buscar ") || texto.startsWith("producto ")) {
+        buscarProductoPorVoz(texto);
+        return;
+      }
 
+      if (texto.startsWith("cantidad ")) {
+        const cantidad = convertirNumero(texto.replace("cantidad ", ""));
+        document.getElementById("cantidadProducto").value = cantidad;
+        hablar("Cantidad " + cantidad);
+        return;
+      }
+
+      if (texto.startsWith("agregar ") || texto.startsWith("agrega ")) {
+        const numeroTexto = texto.replace("agregar", "").replace("agrega", "").trim();
+        const cantidad = convertirNumero(numeroTexto);
+        if (!productoSeleccionadoVoz) {
+          const primeroVisible = document.querySelector(".producto");
+          if (primeroVisible) {
+            const id = primeroVisible.id.replace("producto-", "");
+            productoSeleccionadoVoz = productos.find(p => String(p.Id) === String(id));
+          }
+        }
         if (!productoSeleccionadoVoz) {
           hablar("Primero busca un producto.");
           return;
         }
-
         agregarProducto(productoSeleccionadoVoz, cantidad);
-        hablar("Agregado " + cantidad);
         return;
       }
 
-      if (texto === "total") {
+      if (texto === "total" || texto.includes("cuanto es")) {
         const total = pedido.reduce((sum, p) => sum + (p.precio * p.cantidad), 0);
         hablar("El total es " + total.toFixed(2) + " dólares.");
         return;
@@ -509,7 +678,11 @@
 
       if (texto.includes("vaciar")) {
         vaciarPedido();
-        hablar("Pedido vacío.");
+        return;
+      }
+
+      if (texto.includes("nuevo pedido")) {
+        nuevoPedido();
         return;
       }
 
@@ -520,14 +693,19 @@
     }
 
     function convertirNumero(texto) {
+      texto = normalizar(texto);
       const mapa = {
         uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
         seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
-        once: 11, doce: 12, quince: 15, veinte: 20
+        once: 11, doce: 12, trece: 13, catorce: 14, quince: 15,
+        dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19,
+        veinte: 20, treinta: 30, cuarenta: 40, cincuenta: 50,
+        sesenta: 60, setenta: 70, ochenta: 80, noventa: 90, cien: 100
       };
-
       if (mapa[texto]) return mapa[texto];
-
+      for (const palabra of texto.split(" ")) {
+        if (mapa[palabra]) return mapa[palabra];
+      }
       const numero = parseInt(texto.replace(/\D/g, ""), 10);
       return Number.isFinite(numero) && numero > 0 ? numero : 1;
     }
