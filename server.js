@@ -22,6 +22,14 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(__dirname));
 
+app.get("/favicon.ico", (req, res) => {
+  res.status(204).end();
+});
+
+app.get("/images/default.png", (req, res) => {
+  res.sendFile(path.join(__dirname, "images", "logo-nuevo.jpg"));
+});
+
 const oauthClient = new OAuthClient({
   clientId: process.env.CLIENT_ID,
   clientSecret: process.env.CLIENT_SECRET,
