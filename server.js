@@ -564,10 +564,19 @@ app.post("/crear-factura", async (req, res) => {
         const unitPrice = Number(item.unitPrice || item.price || item.precio || 0);
         const itemId = item.itemId || item.id;
 
+        if (!itemId) {
+          throw new Error("Producto sin itemId");
+        }
+
         return {
           DetailType: "SalesItemLineDetail",
           Amount: Number((qty * unitPrice).toFixed(2)),
-          Description: item.description || item.descripcion || item.name || item.nombre || "",
+          Description:
+            item.description ||
+            item.descripcion ||
+            item.name ||
+            item.nombre ||
+            "",
           SalesItemLineDetail: {
             ItemRef: {
               value: String(itemId),
@@ -578,6 +587,9 @@ app.post("/crear-factura", async (req, res) => {
         };
       }),
     };
+
+    console.log("FACTURA A ENVIAR A QUICKBOOKS:");
+    console.log(JSON.stringify(invoice, null, 2));
 
     const data = await qboPost("/invoice?minorversion=75", invoice);
 
