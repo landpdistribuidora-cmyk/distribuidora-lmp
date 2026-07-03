@@ -733,91 +733,98 @@
         hablar("Encontré varios. Usaré el primero si dices agregar.");
       }
     }
+function procesarComandoVoz(texto) {
+  mostrarMensaje("Voz: " + texto);
+  const limpio = normalizar(texto);
 
-    function procesarComandoVoz(texto) {
-      mostrarMensaje("Voz: " + texto);
-      const limpio = normalizar(texto);
+  if (!limpio) return;
 
-      if (!limpio) return;
+  if (limpio.includes("apagar voz") || limpio === "apagar") {
+    desactivarModoVoz();
+    return;
+  }
 
-      if (limpio.includes("apagar voz") || limpio === "apagar") {
-        desactivarModoVoz();
-        return;
-      }
+  if (
+    limpio.startsWith("cliente ") ||
+    limpio.startsWith("tienda ") ||
+    limpio.startsWith("selecciona cliente ") ||
+    limpio.startsWith("selecciona tienda ")
+  ) {
+    const nombreCliente = limpio
+      .replace("selecciona cliente", "")
+      .replace("selecciona tienda", "")
+      .replace("cliente", "")
+      .replace("tienda", "")
+      .trim();
 
-      if (limpio.startsWith("cliente ") || limpio.startsWith("tienda ")) {
-        seleccionarClientePorTexto(limpio);
-        document.getElementById("buscarCliente").value = "";
-        return;
-      }
+    seleccionarClientePorTexto(nombreCliente);
+    document.getElementById("buscarCliente").value = "";
+    document.getElementById("buscarProducto").value = "";
+    return;
+  }
 
-      if (limpio.includes("crear factura") || limpio.includes("enviar factura")) {
-        crearFactura();
-        return;
-      }
+  if (limpio.includes("crear factura") || limpio.includes("enviar factura")) {
+    crearFactura();
+    return;
+  }
 
-      if (limpio.includes("vaciar")) {
-        vaciarPedido();
-        return;
-      }
+  if (limpio.includes("vaciar")) {
+    vaciarPedido();
+    return;
+  }
 
-      if (limpio.includes("nuevo pedido")) {
-        nuevoPedido();
-        return;
-      }
+  if (limpio.includes("nuevo pedido")) {
+    nuevoPedido();
+    return;
+  }
 
-      if (limpio === "total" || limpio.includes("cuanto es") || limpio.includes("cuanto llevo")) {
-        const total = pedido.reduce((sum, p) => sum + (p.precio * p.cantidad), 0);
-        hablar("El total es " + total.toFixed(2) + " dólares.");
-        return;
-      }
+  if (limpio === "total" || limpio.includes("cuanto es") || limpio.includes("cuanto llevo")) {
+    const total = pedido.reduce((sum, p) => sum + (p.precio * p.cantidad), 0);
+    hablar("El total es " + total.toFixed(2) + " dólares.");
+    return;
+  }
 
-      if (limpio.startsWith("buscar ") || limpio.startsWith("busca ") || limpio.startsWith("producto ")) {
-        buscarProductoPorVoz(limpio, false);
-        return;
-      }
+  if (
+    limpio.startsWith("producto ") ||
+    limpio.startsWith("buscar ") ||
+    limpio.startsWith("busca ")
+  ) {
+    buscarProductoPorVoz(limpio, false);
+    return;
+  }
 
-      if (limpio.startsWith("cantidad ")) {
-        const cantidad = convertirNumero(limpio.replace("cantidad ", "")).cantidad;
-        document.getElementById("cantidadProducto").value = cantidad;
-        hablar("Cantidad " + cantidad);
-        return;
-      }
+  if (
+    limpio.startsWith("agregar ") ||
+    limpio.startsWith("agrega ") ||
+    limpio.startsWith("pon ")
+  ) {
+    const sinComando = limpio
+      .replace(/^agregar\s*/, "")
+      .replace(/^agrega\s*/, "")
+      .replace(/^pon\s*/, "");
 
-      if (limpio.startsWith("agregar") || limpio.startsWith("agrega") || limpio.startsWith("pon")) {
-        const sinComando = limpio.replace(/^agregar\s*/, "").replace(/^agrega\s*/, "").replace(/^pon\s*/, "");
-        const partes = convertirNumero(sinComando);
-        const textoProducto = partes.textoRestante;
-        const cantidad = partes.cantidad;
+    const partes = convertirNumero(sinComando);
+    const textoProducto = partes.textoRestante;
+    const cantidad = partes.cantidad;
 
-        if (textoProducto) {
-          const encontrados = encontrarProductosInteligente(textoProducto);
-          productoSeleccionadoVoz = encontrados[0] || null;
-        }
-
-        if (!productoSeleccionadoVoz) {
-          hablar("Primero busca un producto.");
-          return;
-        }
-
-        agregarProducto(productoSeleccionadoVoz, cantidad);
-        return;
-      }
-
-      // Comando rápido: "cinco chetos flaming" o "dos coca tres litros"
-      const partes = convertirNumero(limpio);
-      if (partes.textoRestante && partes.textoRestante !== limpio) {
-        const encontrados = encontrarProductosInteligente(partes.textoRestante);
-        if (encontrados.length) {
-          agregarProducto(encontrados[0], partes.cantidad);
-          return;
-        }
-      }
-
-      // Si solo dijo el producto, búscalo.
-      buscarProductoPorVoz(limpio, false);
+    if (textoProducto) {
+      const encontrados = encontrarProductosInteligente(textoProducto);
+      productoSeleccionadoVoz = encontrados[0] || null;
     }
 
+    if (!productoSeleccionadoVoz) {
+      hablar("Primero dime el producto.");
+      return;
+    }
+
+    agregarProducto(productoSeleccionadoVoz, cantidad);
+    document.getElementById("buscarProducto").value = "";
+    mostrarProductos();
+    return;
+  }
+
+  hablar("Di cliente o tienda antes del nombre de la tienda. Para productos di producto, buscar o agregar.");
+}
     function convertirNumero(texto) {
       texto = normalizar(texto);
       const mapa = {
