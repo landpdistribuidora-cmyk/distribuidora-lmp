@@ -131,6 +131,8 @@
     let categoriaActual = "Todos";
     let productoSeleccionadoVoz = null;
     let reconocimiento = null;
+    let vozActiva = false;
+    let reinicioVozTimer = null;
     let barcodes = [];
 
     const categorias = {
@@ -298,16 +300,6 @@
       mensaje.timer = setTimeout(() => { mensaje.style.display = "none"; }, 4500);
     }
 
-    function hablar(texto) {
-      try {
-        if (!("speechSynthesis" in window)) return;
-        const voz = new SpeechSynthesisUtterance(texto);
-        voz.lang = "es-MX";
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(voz);
-      } catch (e) {}
-    }
-
     function productoEnCategoria(p, categoria) {
       if (categoria === "Todos") return true;
       const nombre = obtenerNombreProducto(p).toLowerCase();
@@ -368,6 +360,8 @@
 
       productoSeleccionadoVoz = producto;
       document.getElementById("cantidadProducto").value = 1;
+      document.getElementById("buscarProducto").value = "";
+      mostrarProductos();
       mostrarPedido();
       mostrarMensaje("Producto agregado: " + cantidad + " x " + nombre);
       hablar("Agregado " + cantidad + " de " + nombre);
@@ -556,158 +550,307 @@
         alert("Este navegador no soporta voz. Usa Chrome o Edge.");
         return null;
       }
+
       const rec = new SpeechRecognition();
       rec.lang = "es-MX";
       rec.continuous = continuous;
       rec.interimResults = false;
       rec.maxAlternatives = 1;
+
       rec.onresult = (event) => {
         const texto = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
         callback(texto);
       };
-      rec.onerror = (event) => console.log("ERROR VOZ:", event.error);
+
+      rec.onerror = (event) => {
+        console.log("ERROR VOZ:", event.error);
+        if (event.error === "not-allowed") {
+          vozActiva = false;
+          document.getElementById("vozEstado").style.display = "none";
+          alert("El navegador no tiene permiso para usar el micrófono.");
+        }
+      };
+
+      if (continuous) {
+        rec.onend = () => {
+          if (!vozActiva) return;
+          clearTimeout(reinicioVozTimer);
+          reinicioVozTimer = setTimeout(() => {
+            try { rec.start(); } catch (e) {}
+          }, 700);
+        };
+      }
+
       return rec;
+    }
+
+    function hablar(texto) {
+      try {
+        if (!("speechSynthesis" in window)) return;
+        const voz = new SpeechSynthesisUtterance(texto);
+        voz.lang = "es-MX";
+        voz.rate = 1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(voz);
+      } catch (e) {}
     }
 
     function escucharCliente() {
       const rec = crearReconocedor((texto) => {
         mostrarMensaje("Cliente por voz: " + texto);
         seleccionarClientePorTexto(texto);
+        document.getElementById("buscarCliente").value = "";
       });
       if (rec) {
         hablar("Di el nombre del cliente o tienda.");
-        rec.start();
+        setTimeout(() => { try { rec.start(); } catch (e) {} }, 500);
       }
     }
 
     function escucharProducto() {
       const rec = crearReconocedor((texto) => {
         mostrarMensaje("Producto por voz: " + texto);
-        buscarProductoPorVoz(texto);
+        buscarProductoPorVoz(texto, true);
       });
       if (rec) {
         hablar("Di el nombre del producto.");
-        rec.start();
+        setTimeout(() => { try { rec.start(); } catch (e) {} }, 500);
       }
     }
 
     function escucharCantidad() {
       const rec = crearReconocedor((texto) => {
-        const cantidad = convertirNumero(texto);
+        const cantidad = convertirNumero(texto).cantidad;
         document.getElementById("cantidadProducto").value = cantidad;
         hablar("Cantidad " + cantidad);
       });
       if (rec) {
         hablar("Di la cantidad.");
-        rec.start();
+        setTimeout(() => { try { rec.start(); } catch (e) {} }, 500);
       }
     }
 
     function activarModoVoz() {
-      if (reconocimiento) reconocimiento.stop();
+      if (reconocimiento) {
+        try { reconocimiento.stop(); } catch (e) {}
+      }
+      vozActiva = true;
       reconocimiento = crearReconocedor(procesarComandoVoz, true);
       if (!reconocimiento) return;
-      reconocimiento.start();
       document.getElementById("vozEstado").style.display = "block";
       hablar("Modo voz activado.");
+      setTimeout(() => { try { reconocimiento.start(); } catch (e) {} }, 700);
     }
 
     function desactivarModoVoz() {
-      if (reconocimiento) reconocimiento.stop();
+      vozActiva = false;
+      clearTimeout(reinicioVozTimer);
+      if (reconocimiento) {
+        try { reconocimiento.stop(); } catch (e) {}
+      }
       reconocimiento = null;
       document.getElementById("vozEstado").style.display = "none";
       hablar("Modo voz apagado.");
     }
 
-    function buscarProductoPorVoz(texto) {
-      const busqueda = normalizar(texto.replace(/^buscar\s+/, "").replace(/^producto\s+/, ""));
-      document.getElementById("buscarProducto").value = busqueda;
-      mostrarProductos();
-
-      const encontrados = productos.filter(p => normalizar(`${obtenerNombreProducto(p)} ${obtenerDescripcionProducto(p)} ${p.Sku || ""}`).includes(busqueda));
-      productoSeleccionadoVoz = encontrados[0] || null;
-
-      if (encontrados.length === 1) hablar("Encontré " + obtenerNombreProducto(encontrados[0]) + ". Di agregar y la cantidad.");
-      else if (encontrados.length > 1) hablar("Encontré varios productos. Toca el correcto o di agregar para usar el primero.");
-      else hablar("No encontré el producto.");
+    function palabrasClave(texto) {
+      const ignorar = new Set([
+        "buscar", "busca", "producto", "cliente", "tienda", "agregar", "agrega", "pon", "dame",
+        "de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas",
+        "pieza", "piezas", "caja", "cajas", "paquete", "paquetes", "bolsa", "bolsas"
+      ]);
+      return normalizar(texto).split(" ").filter(p => p && !ignorar.has(p));
     }
 
-    function procesarComandoVoz(texto) {
-      mostrarMensaje("Voz: " + texto);
+    function scoreProducto(producto, texto) {
+      const query = normalizar(texto);
+      const tokens = palabrasClave(query);
+      if (!tokens.length) return 0;
 
-      if (texto.startsWith("cliente ") || texto.startsWith("tienda ")) {
-        seleccionarClientePorTexto(texto);
+      const nombre = normalizar(obtenerNombreProducto(producto));
+      const desc = normalizar(obtenerDescripcionProducto(producto));
+      const sku = normalizar(producto.Sku || producto.SKU || producto.sku || "");
+      const combinado = `${nombre} ${desc} ${sku}`;
+
+      let score = 0;
+      if (nombre === query) score += 120;
+      if (nombre.includes(query)) score += 90;
+      if (desc.includes(query)) score += 65;
+      if (sku && sku.includes(query)) score += 100;
+
+      tokens.forEach(token => {
+        if (nombre.includes(token)) score += 25;
+        if (desc.includes(token)) score += 15;
+        if (sku.includes(token)) score += 20;
+      });
+
+      const encontrados = tokens.filter(t => combinado.includes(t)).length;
+      if (encontrados === tokens.length) score += 50;
+      else score -= (tokens.length - encontrados) * 12;
+
+      return score;
+    }
+
+    function encontrarProductosInteligente(texto) {
+      return productos
+        .map(p => ({ producto: p, score: scoreProducto(p, texto) }))
+        .filter(r => r.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(r => r.producto);
+    }
+
+    function buscarProductoPorVoz(texto, autoAgregar = false) {
+      const limpio = normalizar(texto
+        .replace(/^buscar\s+/, "")
+        .replace(/^busca\s+/, "")
+        .replace(/^producto\s+/, "")
+        .replace(/^agregar\s+/, "")
+        .replace(/^agrega\s+/, "")
+      );
+
+      const partes = convertirNumero(limpio);
+      const cantidad = partes.cantidad;
+      const busqueda = partes.textoRestante || limpio;
+
+      document.getElementById("buscarProducto").value = busqueda;
+      const encontrados = encontrarProductosInteligente(busqueda);
+      productoSeleccionadoVoz = encontrados[0] || null;
+      mostrarProductos();
+
+      if (!productoSeleccionadoVoz) {
+        hablar("No encontré el producto.");
         return;
       }
 
-      if (texto.startsWith("buscar ") || texto.startsWith("producto ")) {
-        buscarProductoPorVoz(texto);
-        return;
-      }
-
-      if (texto.startsWith("cantidad ")) {
-        const cantidad = convertirNumero(texto.replace("cantidad ", ""));
-        document.getElementById("cantidadProducto").value = cantidad;
-        hablar("Cantidad " + cantidad);
-        return;
-      }
-
-      if (texto.startsWith("agregar ") || texto.startsWith("agrega ")) {
-        const numeroTexto = texto.replace("agregar", "").replace("agrega", "").trim();
-        const cantidad = convertirNumero(numeroTexto);
-        if (!productoSeleccionadoVoz) {
-          const primeroVisible = document.querySelector(".producto");
-          if (primeroVisible) {
-            const id = primeroVisible.id.replace("producto-", "");
-            productoSeleccionadoVoz = productos.find(p => String(p.Id) === String(id));
-          }
-        }
-        if (!productoSeleccionadoVoz) {
-          hablar("Primero busca un producto.");
-          return;
-        }
+      if (autoAgregar && encontrados.length === 1) {
         agregarProducto(productoSeleccionadoVoz, cantidad);
         return;
       }
 
-      if (texto === "total" || texto.includes("cuanto es")) {
+      if (encontrados.length === 1) {
+        hablar("Encontré " + obtenerNombreProducto(encontrados[0]) + ". Di agregar o toca el producto.");
+      } else {
+        hablar("Encontré varios. Usaré el primero si dices agregar.");
+      }
+    }
+
+    function procesarComandoVoz(texto) {
+      mostrarMensaje("Voz: " + texto);
+      const limpio = normalizar(texto);
+
+      if (!limpio) return;
+
+      if (limpio.includes("apagar voz") || limpio === "apagar") {
+        desactivarModoVoz();
+        return;
+      }
+
+      if (limpio.startsWith("cliente ") || limpio.startsWith("tienda ")) {
+        seleccionarClientePorTexto(limpio);
+        document.getElementById("buscarCliente").value = "";
+        return;
+      }
+
+      if (limpio.includes("crear factura") || limpio.includes("enviar factura")) {
+        crearFactura();
+        return;
+      }
+
+      if (limpio.includes("vaciar")) {
+        vaciarPedido();
+        return;
+      }
+
+      if (limpio.includes("nuevo pedido")) {
+        nuevoPedido();
+        return;
+      }
+
+      if (limpio === "total" || limpio.includes("cuanto es") || limpio.includes("cuanto llevo")) {
         const total = pedido.reduce((sum, p) => sum + (p.precio * p.cantidad), 0);
         hablar("El total es " + total.toFixed(2) + " dólares.");
         return;
       }
 
-      if (texto.includes("vaciar")) {
-        vaciarPedido();
+      if (limpio.startsWith("buscar ") || limpio.startsWith("busca ") || limpio.startsWith("producto ")) {
+        buscarProductoPorVoz(limpio, false);
         return;
       }
 
-      if (texto.includes("nuevo pedido")) {
-        nuevoPedido();
+      if (limpio.startsWith("cantidad ")) {
+        const cantidad = convertirNumero(limpio.replace("cantidad ", "")).cantidad;
+        document.getElementById("cantidadProducto").value = cantidad;
+        hablar("Cantidad " + cantidad);
         return;
       }
 
-      if (texto.includes("crear factura") || texto.includes("enviar factura")) {
-        crearFactura();
+      if (limpio.startsWith("agregar") || limpio.startsWith("agrega") || limpio.startsWith("pon")) {
+        const sinComando = limpio.replace(/^agregar\s*/, "").replace(/^agrega\s*/, "").replace(/^pon\s*/, "");
+        const partes = convertirNumero(sinComando);
+        const textoProducto = partes.textoRestante;
+        const cantidad = partes.cantidad;
+
+        if (textoProducto) {
+          const encontrados = encontrarProductosInteligente(textoProducto);
+          productoSeleccionadoVoz = encontrados[0] || null;
+        }
+
+        if (!productoSeleccionadoVoz) {
+          hablar("Primero busca un producto.");
+          return;
+        }
+
+        agregarProducto(productoSeleccionadoVoz, cantidad);
         return;
       }
+
+      // Comando rápido: "cinco chetos flaming" o "dos coca tres litros"
+      const partes = convertirNumero(limpio);
+      if (partes.textoRestante && partes.textoRestante !== limpio) {
+        const encontrados = encontrarProductosInteligente(partes.textoRestante);
+        if (encontrados.length) {
+          agregarProducto(encontrados[0], partes.cantidad);
+          return;
+        }
+      }
+
+      // Si solo dijo el producto, búscalo.
+      buscarProductoPorVoz(limpio, false);
     }
 
     function convertirNumero(texto) {
       texto = normalizar(texto);
       const mapa = {
-        uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
+        uno: 1, una: 1, un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
         seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
         once: 11, doce: 12, trece: 13, catorce: 14, quince: 15,
         dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19,
-        veinte: 20, treinta: 30, cuarenta: 40, cincuenta: 50,
+        veinte: 20, veintiuno: 21, veintidos: 22, veintitres: 23, veinticuatro: 24, veinticinco: 25,
+        treinta: 30, cuarenta: 40, cincuenta: 50,
         sesenta: 60, setenta: 70, ochenta: 80, noventa: 90, cien: 100
       };
-      if (mapa[texto]) return mapa[texto];
-      for (const palabra of texto.split(" ")) {
-        if (mapa[palabra]) return mapa[palabra];
+
+      const tokens = texto.split(" ").filter(Boolean);
+      let cantidad = 1;
+      let usados = 0;
+
+      if (tokens[0] && /^\d+$/.test(tokens[0])) {
+        cantidad = parseInt(tokens[0], 10);
+        usados = 1;
+      } else if (tokens[0] && mapa[tokens[0]]) {
+        cantidad = mapa[tokens[0]];
+        usados = 1;
+        if (tokens[1] === "y" && tokens[2] && mapa[tokens[2]]) {
+          cantidad += mapa[tokens[2]];
+          usados = 3;
+        }
       }
-      const numero = parseInt(texto.replace(/\D/g, ""), 10);
-      return Number.isFinite(numero) && numero > 0 ? numero : 1;
+
+      const textoRestante = tokens.slice(usados).join(" ").trim();
+      return {
+        cantidad: Number.isFinite(cantidad) && cantidad > 0 ? cantidad : 1,
+        textoRestante
+      };
     }
 
     cargarDatos();
