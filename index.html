@@ -38,6 +38,10 @@
     .voz-activa { background: #dcfce7; color: #166534; padding: 12px; border-radius: 12px; margin-top: 10px; font-weight: bold; display: none; }
     .cliente-info { background: #f8fafc; border-left: 5px solid #16a34a; padding: 10px; border-radius: 12px; margin: 5px 0 18px; }
     .small { font-size: 14px; color: #4b5563; }
+    @media(max-width: 1100px) {
+      .top-panel > div[style*="grid-template-columns: 1fr 1fr 240px"] { grid-template-columns: 1fr !important; }
+      .top-panel > div[style*="grid-template-columns: 1fr 180px"] { grid-template-columns: 1fr !important; }
+    }
     @media(max-width: 900px) {
       .container { padding: 12px; }
       .layout { grid-template-columns: 1fr; }
@@ -55,45 +59,53 @@
 
   <div class="container">
     <div class="top-panel">
-      <button class="btn-purple" onclick="window.open('/connect-qbo', '_blank')">Conectar QuickBooks</button>
-      <button class="btn-dark" onclick="cargarDatos()">Recargar datos</button>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-end;">
+        <button class="btn-purple" onclick="window.open('/connect-qbo', '_blank')">Conectar QuickBooks</button>
+        <button class="btn-dark" onclick="cargarDatos()">Recargar datos</button>
+      </div>
 
-      <br><br>
-
-      <label>Tipo de usuario</label><br>
-      <select id="tipoUsuario">
-        <option value="empleado">Empleado</option>
-        <option value="cliente">Cliente</option>
+      <select id="tipoUsuario" style="display:none;">
+        <option value="empleado" selected>Empleado</option>
       </select>
 
-      <br>
+      <div style="display:grid; grid-template-columns: 1fr 1fr 240px; gap:16px; align-items:end; margin-top:18px;">
+        <div>
+          <label>Cliente</label><br>
+          <input id="buscarCliente" type="text" placeholder="Buscar cliente..." oninput="filtrarClientesPorTexto()">
+          <select id="cliente" onchange="actualizarClienteSeleccionado()">
+            <option value="">Cargando clientes...</option>
+          </select>
+        </div>
 
-      <label>Cliente / Tienda</label><br>
-      <input id="buscarCliente" type="text" placeholder="Buscar cliente por nombre..." oninput="filtrarClientesPorTexto()">
-      <button class="btn-green" onclick="escucharCliente()">🎤 Decir cliente</button>
-      <select id="cliente" onchange="actualizarClienteSeleccionado()">
-        <option value="">Cargando clientes...</option>
-      </select>
+        <div>
+          <label>Buscar artículo</label><br>
+          <input id="buscarProducto" type="text" placeholder="Buscar artículo..." oninput="mostrarProductos()">
+        </div>
+
+        <div>
+          <label>Cantidad</label><br>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button type="button" onclick="cambiarCantidad(-1)" style="min-width:48px;">-</button>
+            <input id="cantidadProducto" type="number" min="1" value="1" style="width:90px; min-width:90px; text-align:center;">
+            <button type="button" onclick="cambiarCantidad(1)" style="min-width:48px;">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 180px; gap:14px; align-items:center; margin-top:12px;">
+        <input id="notaPedido" type="text" placeholder="Nuevo pedido">
+        <button id="btnVoz" class="btn-green" onclick="toggleVoz()">🎤 Escuchar</button>
+      </div>
+
       <div id="clienteInfo" class="cliente-info">Cliente seleccionado: ninguno</div>
 
-      <label>Buscar producto</label><br>
-      <input id="buscarProducto" type="text" placeholder="Buscar producto..." oninput="mostrarProductos()">
-      <button class="btn-green" onclick="escucharProducto()">🎤 Decir producto</button>
-      <button class="btn-yellow" onclick="escucharCantidad()">🎤 Decir cantidad</button>
-      <input id="cantidadProducto" type="number" min="1" value="1" style="width:120px; min-width:120px;">
-
-      <br>
-      <button onclick="limpiarBusqueda()">Limpiar producto</button>
-      <button class="btn-green" onclick="activarModoVoz()">🎤 Activar modo voz completo</button>
-      <button class="btn-dark" onclick="desactivarModoVoz()">Apagar voz</button>
-
       <div id="mensaje" class="mensaje"></div>
-      <div id="vozEstado" class="voz-activa">🎤 Modo voz activo. Puedes decir: cliente La Esperanza, buscar Coca, agregar 5, total, crear factura.</div>
+      <div id="vozEstado" class="voz-activa">🎤 Escuchando. Puedes decir: cliente Tres Amigos, dos chetos flaming, aceite uno litro, total, crear factura.</div>
     </div>
 
     <div class="layout">
       <div class="productos-box">
-        <h2>Productos</h2>
+        <h2>Artículos</h2>
 
         <div class="categorias">
           <button onclick="filtrarCategoria('Todos')" id="cat-Todos" class="activo">Todos</button>
@@ -109,7 +121,7 @@
       <div class="pedido-box">
         <div class="pedido-header">
           <h2>🛒 Pedido</h2>
-          <span id="contador" class="contador">0 productos</span>
+          <span id="contador" class="contador">0 artículos</span>
         </div>
 
         <div id="pedido"></div>
@@ -134,7 +146,7 @@
     let vozActiva = false;
     let reinicioVozTimer = null;
     let barcodes = [];
-
+    let aliases = {};
     const categorias = {
       Todos: [],
       Abarrotes: ["aceite", "salsa", "mayonesa", "knorr", "frijol", "arroz", "harina", "atun", "atún", "enlatado", "flete"],
@@ -146,7 +158,12 @@
     async function cargarDatos() {
       try {
         mostrarMensaje("Cargando clientes y productos desde QuickBooks...");
-
+try {
+  const aliasesRes = await fetch("/aliases.json");
+  aliases = await aliasesRes.json();
+} catch (e) {
+  aliases = {};
+}
         const clientesRes = await fetch("/clientes");
         const dataClientes = await clientesRes.json();
         if (!clientesRes.ok) throw new Error(dataClientes.detalle || dataClientes.error || "Error cargando clientes");
@@ -292,6 +309,21 @@
       return `images/productos/${nombre}.jpg`;
     }
 
+    function cambiarCantidad(delta) {
+      const input = document.getElementById("cantidadProducto");
+      let valor = Number(input.value || 1) + delta;
+      if (valor < 1) valor = 1;
+      input.value = valor;
+    }
+
+    function toggleVoz() {
+      if (vozActiva) {
+        desactivarModoVoz();
+      } else {
+        activarModoVoz();
+      }
+    }
+
     function mostrarMensaje(texto) {
       const mensaje = document.getElementById("mensaje");
       mensaje.innerText = texto;
@@ -363,7 +395,7 @@
       document.getElementById("buscarProducto").value = "";
       mostrarProductos();
       mostrarPedido();
-      mostrarMensaje("Producto agregado: " + cantidad + " x " + nombre);
+      mostrarMensaje("Artículo agregado: " + cantidad + " x " + nombre);
       hablar("Agregado " + cantidad + " de " + nombre);
     }
 
@@ -638,6 +670,8 @@
       reconocimiento = crearReconocedor(procesarComandoVoz, true);
       if (!reconocimiento) return;
       document.getElementById("vozEstado").style.display = "block";
+      const btnVoz = document.getElementById("btnVoz");
+      if (btnVoz) btnVoz.innerText = "🎤 Escuchando";
       hablar("Modo voz activado.");
       setTimeout(() => { try { reconocimiento.start(); } catch (e) {} }, 700);
     }
@@ -650,6 +684,8 @@
       }
       reconocimiento = null;
       document.getElementById("vozEstado").style.display = "none";
+      const btnVoz = document.getElementById("btnVoz");
+      if (btnVoz) btnVoz.innerText = "🎤 Escuchar";
       hablar("Modo voz apagado.");
     }
 
@@ -671,7 +707,10 @@
       const desc = normalizar(obtenerDescripcionProducto(producto));
       const sku = normalizar(producto.Sku || producto.SKU || producto.sku || "");
       const combinado = `${nombre} ${desc} ${sku}`;
-
+const nombreOriginal = obtenerNombreProducto(producto);
+const aliasProducto = aliases[nombreOriginal] || aliases[producto.Name] || aliases[producto.FullyQualifiedName] || [];
+const aliasTexto = normalizar(aliasProducto.join(" "));
+const combinadoConAlias = `${combinado} ${aliasTexto}`;
       let score = 0;
       if (nombre === query) score += 120;
       if (nombre.includes(query)) score += 90;
@@ -681,10 +720,11 @@
       tokens.forEach(token => {
         if (nombre.includes(token)) score += 25;
         if (desc.includes(token)) score += 15;
+        if (aliasTexto.includes(token)) score += 80;
         if (sku.includes(token)) score += 20;
       });
 
-      const encontrados = tokens.filter(t => combinado.includes(t)).length;
+      const encontrados = tokens.filter(t => combinadoConAlias.includes(t)).length;
       if (encontrados === tokens.length) score += 50;
       else score -= (tokens.length - encontrados) * 12;
 
