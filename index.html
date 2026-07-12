@@ -38,10 +38,6 @@
     .voz-activa { background: #dcfce7; color: #166534; padding: 12px; border-radius: 12px; margin-top: 10px; font-weight: bold; display: none; }
     .cliente-info { background: #f8fafc; border-left: 5px solid #16a34a; padding: 10px; border-radius: 12px; margin: 5px 0 18px; }
     .small { font-size: 14px; color: #4b5563; }
-    @media(max-width: 1100px) {
-      .top-panel > div[style*="grid-template-columns: 1fr 1fr 240px"] { grid-template-columns: 1fr !important; }
-      .top-panel > div[style*="grid-template-columns: 1fr 180px"] { grid-template-columns: 1fr !important; }
-    }
     @media(max-width: 900px) {
       .container { padding: 12px; }
       .layout { grid-template-columns: 1fr; }
@@ -64,13 +60,17 @@
         <button class="btn-dark" onclick="cargarDatos()">Recargar datos</button>
       </div>
 
-      <select id="tipoUsuario" style="display:none;">
-        <option value="empleado" selected>Empleado</option>
-      </select>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr 240px; gap:16px; align-items:end; margin-top:18px;">
+      <div style="display:grid; grid-template-columns: 220px 1fr 1fr 220px; gap:16px; align-items:end; margin-top:18px;">
         <div>
-          <label>Cliente</label><br>
+          <label>Tipo de usuario</label><br>
+          <select id="tipoUsuario">
+            <option value="empleado">Empleado</option>
+            <option value="cliente">Cliente</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Cliente / Tienda</label><br>
           <input id="buscarCliente" type="text" placeholder="Buscar cliente..." oninput="filtrarClientesPorTexto()">
           <select id="cliente" onchange="actualizarClienteSeleccionado()">
             <option value="">Cargando clientes...</option>
@@ -98,9 +98,8 @@
       </div>
 
       <div id="clienteInfo" class="cliente-info">Cliente seleccionado: ninguno</div>
-
       <div id="mensaje" class="mensaje"></div>
-      <div id="vozEstado" class="voz-activa">🎤 Escuchando. Puedes decir: cliente Tres Amigos, dos chetos flaming, aceite uno litro, total, crear factura.</div>
+      <div id="vozEstado" class="voz-activa">🎤 Escuchando.</div>
     </div>
 
     <div class="layout">
@@ -146,7 +145,7 @@
     let vozActiva = false;
     let reinicioVozTimer = null;
     let barcodes = [];
-    let aliases = {};
+let aliases = {};
     const categorias = {
       Todos: [],
       Abarrotes: ["aceite", "salsa", "mayonesa", "knorr", "frijol", "arroz", "harina", "atun", "atún", "enlatado", "flete"],
@@ -317,11 +316,8 @@ try {
     }
 
     function toggleVoz() {
-      if (vozActiva) {
-        desactivarModoVoz();
-      } else {
-        activarModoVoz();
-      }
+      if (vozActiva) desactivarModoVoz();
+      else activarModoVoz();
     }
 
     function mostrarMensaje(texto) {
@@ -338,46 +334,44 @@ try {
       return categorias[categoria].some(palabra => nombre.includes(palabra));
     }
 
-   function mostrarProductos() {
-  const divProductos = document.getElementById("productos");
-  const buscar = normalizar(document.getElementById("buscarProducto").value);
-  divProductos.innerHTML = "";
+    function mostrarProductos() {
+      const divProductos = document.getElementById("productos");
+      const buscar = normalizar(document.getElementById("buscarProducto").value);
+      divProductos.innerHTML = "";
 
-  let filtrados = productos.filter(p => productoEnCategoria(p, categoriaActual));
+      const filtrados = productos.filter(p => {
+        const nombre = normalizar(obtenerNombreProducto(p));
+        const descripcion = normalizar(obtenerDescripcionProducto(p));
+        const sku = normalizar(p.Sku || p.SKU || p.sku || "");
+        const coincideBusqueda = !buscar || nombre.includes(buscar) || descripcion.includes(buscar) || sku.includes(buscar);
+        const coincideCategoria = productoEnCategoria(p, categoriaActual);
+        return coincideBusqueda && coincideCategoria;
+      });
 
-  if (buscar) {
-    filtrados = filtrados
-      .map(p => ({ producto: p, score: scoreProducto(p, buscar) }))
-      .filter(r => r.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(r => r.producto);
-  }
+      if (filtrados.length === 1) productoSeleccionadoVoz = filtrados[0];
 
-  if (filtrados.length === 1) productoSeleccionadoVoz = filtrados[0];
+      if (filtrados.length === 0) {
+        divProductos.innerHTML = `<p>No se encontraron productos.</p>`;
+        productoSeleccionadoVoz = null;
+        return;
+      }
 
-  if (filtrados.length === 0) {
-    divProductos.innerHTML = `<p>No se encontraron artículos.</p>`;
-    productoSeleccionadoVoz = null;
-    return;
-  }
-
-  filtrados.slice(0, 100).forEach(p => {
-    const nombre = obtenerNombreProducto(p);
-    const precio = obtenerPrecioProducto(p);
-    const imagen = obtenerImagenProducto(p);
-
-    const card = document.createElement("div");
-    card.className = "producto";
-    card.id = "producto-" + p.Id;
-    card.innerHTML = `
-      <img src="${imagen}" alt="${nombre}" onerror="this.onerror=null; this.src='images/logo-nuevo.jpg';">
-      <h3>${nombre}</h3>
-      <p>$${precio.toFixed(2)}</p>
-    `;
-    card.onclick = () => agregarProducto(p, Number(document.getElementById("cantidadProducto").value || 1));
-    divProductos.appendChild(card);
-  });
-}
+      filtrados.slice(0, 100).forEach(p => {
+        const nombre = obtenerNombreProducto(p);
+        const precio = obtenerPrecioProducto(p);
+        const imagen = obtenerImagenProducto(p);
+        const card = document.createElement("div");
+        card.className = "producto";
+        card.id = "producto-" + p.Id;
+        card.innerHTML = `
+          <img src="${imagen}" alt="${nombre}" onerror="this.onerror=null; this.src='images/logo-nuevo.jpg';">
+          <h3>${nombre}</h3>
+          <p>$${precio.toFixed(2)}</p>
+        `;
+        card.onclick = () => agregarProducto(p, Number(document.getElementById("cantidadProducto").value || 1));
+        divProductos.appendChild(card);
+      });
+    }
 
     function agregarProducto(producto, cantidad = 1) {
       cantidad = Number(cantidad || 1);
@@ -397,7 +391,7 @@ try {
       document.getElementById("buscarProducto").value = "";
       mostrarProductos();
       mostrarPedido();
-      mostrarMensaje("Artículo agregado: " + cantidad + " x " + nombre);
+      mostrarMensaje("Producto agregado: " + cantidad + " x " + nombre);
       hablar("Agregado " + cantidad + " de " + nombre);
     }
 
