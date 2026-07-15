@@ -1,0 +1,609 @@
+[
+  {
+    "date": "5/10/2026, 2:08:25 PM",
+    "type": "empleado",
+    "store": "eddies",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 1
+      },
+      {
+        "id": 2,
+        "product_id": "0002-ACEITE 123 500MIL O 16OZ",
+        "name": "ACEITE 123 500MIL O 16OZ",
+        "price": 55.49,
+        "image": "\"https://m.media-amazon.com/images/I/61CeiNVEZyL._AC_UF894",
+        "qty": 1
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 2
+      },
+      {
+        "id": 10,
+        "product_id": "0010-ENSALADA CAMP",
+        "name": "ENSALADA CAMP",
+        "price": 34.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 2
+      }
+    ],
+    "total": 253.44
+  },
+  {
+    "date": "5/10/2026, 2:11:14 PM",
+    "type": "empleado",
+    "store": "mana",
+    "email": "situfeng90@gmail.com",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 5
+      },
+      {
+        "id": 2,
+        "product_id": "0002-ACEITE 123 500MIL O 16OZ",
+        "name": "ACEITE 123 500MIL O 16OZ",
+        "price": 55.49,
+        "image": "\"https://m.media-amazon.com/images/I/61CeiNVEZyL._AC_UF894",
+        "qty": 1
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 4,
+        "product_id": "0004-CAFEDOLC80",
+        "name": "CAFEDOLC80",
+        "price": 79.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 5,
+        "product_id": "0005-CARLOS POLVO",
+        "name": "CARLOS POLVO",
+        "price": 64.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 4
+      }
+    ],
+    "total": 684.38
+  },
+  {
+    "date": "5/10/2026, 3:05:45 PM",
+    "type": "cliente",
+    "store": "mana",
+    "email": "situfeng90@gmail.com",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 2
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 4,
+        "product_id": "0004-CAFEDOLC80",
+        "name": "CAFEDOLC80",
+        "price": 79.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 218.95999999999998
+  },
+  {
+    "date": "5/10/2026, 4:47:57 PM",
+    "type": "empleado",
+    "store": "pine apple",
+    "email": "situfeng90@gmail.com",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 2
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 4,
+        "product_id": "0004-CAFEDOLC80",
+        "name": "CAFEDOLC80",
+        "price": 79.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 11,
+        "product_id": "0011-ENSALADA CAMPESINA DEL MONTE CHICA",
+        "name": "ENSALADA CAMPESINA DEL MONTE CHICA",
+        "price": 26.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 10,
+        "product_id": "0010-ENSALADA CAMP",
+        "name": "ENSALADA CAMP",
+        "price": 34.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 9,
+        "product_id": "0009-DONA MARIA MOLE ROJO",
+        "name": "DONA MARIA MOLE ROJO",
+        "price": 44.66,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 12,
+        "product_id": "0012-ENSALADA VERDURAS",
+        "name": "ENSALADA VERDURAS",
+        "price": 34.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 360.59000000000003
+  },
+  {
+    "date": "5/10/2026, 6:15:09 PM",
+    "type": "empleado",
+    "store": "mana",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 4
+      },
+      {
+        "id": 5,
+        "product_id": "0005-CARLOS POLVO",
+        "name": "CARLOS POLVO",
+        "price": 64.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 2
+      },
+      {
+        "id": 4,
+        "product_id": "0004-CAFEDOLC80",
+        "name": "CAFEDOLC80",
+        "price": 79.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 2
+      },
+      {
+        "id": 6,
+        "product_id": "0006-CHATAFRL",
+        "name": "CHATAFRL",
+        "price": 24.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 4
+      }
+    ],
+    "total": 589.88
+  },
+  {
+    "date": "5/10/2026, 6:21:05 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "fiesta",
+    "email": "",
+    "items": [
+      {
+        "id": 13,
+        "product_id": "0013-FANTA DE NARANJA 500MIL",
+        "name": "FANTA DE NARANJA 500MIL",
+        "price": 45.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 12,
+        "product_id": "0012-ENSALADA VERDURAS",
+        "name": "ENSALADA VERDURAS",
+        "price": 34.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 14,
+        "product_id": "0014-FLETE",
+        "name": "FLETE",
+        "price": 140,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 15,
+        "product_id": "0015-HARINA SELECTA5LB",
+        "name": "HARINA SELECTA5LB",
+        "price": 35.49,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 16,
+        "product_id": "0016-KNORR CAMARON",
+        "name": "KNORR CAMARON",
+        "price": 15.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 272.46000000000004
+  },
+  {
+    "date": "5/10/2026, 6:32:04 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "gallito",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 1
+      },
+      {
+        "id": 2,
+        "product_id": "0002-ACEITE 123 500MIL O 16OZ",
+        "name": "ACEITE 123 500MIL O 16OZ",
+        "price": 55.49,
+        "image": "\"https://m.media-amazon.com/images/I/61CeiNVEZyL._AC_UF894",
+        "qty": 1
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 4,
+        "product_id": "0004-CAFEDOLC80",
+        "name": "CAFEDOLC80",
+        "price": 79.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 5,
+        "product_id": "0005-CARLOS POLVO",
+        "name": "CARLOS POLVO",
+        "price": 64.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 289.45
+  },
+  {
+    "date": "5/10/2026, 6:38:39 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "monarca",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 1
+      },
+      {
+        "id": 2,
+        "product_id": "0002-ACEITE 123 500MIL O 16OZ",
+        "name": "ACEITE 123 500MIL O 16OZ",
+        "price": 55.49,
+        "image": "\"https://m.media-amazon.com/images/I/61CeiNVEZyL._AC_UF894",
+        "qty": 2
+      }
+    ],
+    "total": 160.97
+  },
+  {
+    "date": "5/10/2026, 6:44:20 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "mana",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 1
+      },
+      {
+        "id": 2,
+        "product_id": "0002-ACEITE 123 500MIL O 16OZ",
+        "name": "ACEITE 123 500MIL O 16OZ",
+        "price": 55.49,
+        "image": "\"https://m.media-amazon.com/images/I/61CeiNVEZyL._AC_UF894",
+        "qty": 1
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 144.47
+  },
+  {
+    "date": "5/10/2026, 6:50:56 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "mana",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 1
+      },
+      {
+        "id": 2,
+        "product_id": "0002-ACEITE 123 500MIL O 16OZ",
+        "name": "ACEITE 123 500MIL O 16OZ",
+        "price": 55.49,
+        "image": "\"https://m.media-amazon.com/images/I/61CeiNVEZyL._AC_UF894",
+        "qty": 1
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 4,
+        "product_id": "0004-CAFEDOLC80",
+        "name": "CAFEDOLC80",
+        "price": 79.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 224.45999999999998
+  },
+  {
+    "date": "5/10/2026, 6:59:14 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "gallito",
+    "email": "",
+    "items": [
+      {
+        "id": 18,
+        "product_id": "0018-LA COSTENA DURAZNO REB",
+        "name": "LA COSTENA DURAZNO REB",
+        "price": 53.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 19,
+        "product_id": "0019-LA COSTENA REB MANG0",
+        "name": "LA COSTENA REB MANG0",
+        "price": 53.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 12,
+        "product_id": "0012-ENSALADA VERDURAS",
+        "name": "ENSALADA VERDURAS",
+        "price": 34.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 14,
+        "product_id": "0014-FLETE",
+        "name": "FLETE",
+        "price": 140,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 15,
+        "product_id": "0015-HARINA SELECTA5LB",
+        "name": "HARINA SELECTA5LB",
+        "price": 35.49,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 318.46000000000004
+  },
+  {
+    "date": "5/10/2026, 7:08:46 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "jimmys",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 2
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 12,
+        "product_id": "0012-ENSALADA VERDURAS",
+        "name": "ENSALADA VERDURAS",
+        "price": 34.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 13,
+        "product_id": "0013-FANTA DE NARANJA 500MIL",
+        "name": "FANTA DE NARANJA 500MIL",
+        "price": 45.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 219.95000000000002
+  },
+  {
+    "date": "5/10/2026, 7:08:52 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "jimmys",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 2
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 12,
+        "product_id": "0012-ENSALADA VERDURAS",
+        "name": "ENSALADA VERDURAS",
+        "price": 34.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 13,
+        "product_id": "0013-FANTA DE NARANJA 500MIL",
+        "name": "FANTA DE NARANJA 500MIL",
+        "price": 45.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 219.95000000000002
+  },
+  {
+    "date": "5/10/2026, 7:17:03 PM",
+    "quickbooks_status": "pendiente",
+    "type": "empleado",
+    "store": "fiesta",
+    "email": "",
+    "items": [
+      {
+        "id": 1,
+        "product_id": "0001-ACEITE123/1LT",
+        "name": "ACEITE123/1LT",
+        "price": 49.99,
+        "image": "https://i5-mx.walmartimages.com/samsmx/images/product-images/img_large/000007780l.jpg",
+        "qty": 1
+      },
+      {
+        "id": 2,
+        "product_id": "0002-ACEITE 123 500MIL O 16OZ",
+        "name": "ACEITE 123 500MIL O 16OZ",
+        "price": 55.49,
+        "image": "\"https://m.media-amazon.com/images/I/61CeiNVEZyL._AC_UF894",
+        "qty": 1
+      },
+      {
+        "id": 3,
+        "product_id": "0003-ADEREZO",
+        "name": "ADEREZO",
+        "price": 38.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      },
+      {
+        "id": 4,
+        "product_id": "0004-CAFEDOLC80",
+        "name": "CAFEDOLC80",
+        "price": 79.99,
+        "image": "https://via.placeholder.com/300x200?text=Producto",
+        "qty": 1
+      }
+    ],
+    "total": 224.45999999999998
+  }
+]

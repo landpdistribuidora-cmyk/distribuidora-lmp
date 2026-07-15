@@ -22,14 +22,6 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(__dirname));
 
-app.get("/favicon.ico", (req, res) => {
-  res.status(204).end();
-});
-
-app.get("/images/default.png", (req, res) => {
-  res.sendFile(path.join(__dirname, "images", "logo-nuevo.jpg"));
-});
-
 const oauthClient = new OAuthClient({
   clientId: process.env.CLIENT_ID,
   clientSecret: process.env.CLIENT_SECRET,
@@ -290,18 +282,7 @@ async function enviarFacturaPorCorreo({
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
-app.get("/catalogo-local", (req, res) => {
-  try {
-    const archivo = path.join(__dirname, "catalogo_maestro_sistema.json");
-    const catalogo = JSON.parse(fs.readFileSync(archivo, "utf8"));
-    res.json(catalogo);
-  } catch (error) {
-    res.status(500).json({
-      error: "No se pudo cargar el catálogo local",
-      detalle: error.message,
-    });
-  }
-});
+
 app.get("/connect-qbo", (req, res) => {
   const authUri = oauthClient.authorizeUri({
     scope: [OAuthClient.scopes.Accounting],
@@ -564,7 +545,7 @@ app.post("/orders", (req, res) => {
   });
 app.post("/crear-factura", async (req, res) => {
   try {
-    const { customerId, items } = req.body;
+    const { customerId, customerName, customerEmail, items } = req.body;
 
     if (!customerId) {
       return res.status(400).json({ error: "Falta customerId" });
@@ -574,52 +555,134 @@ app.post("/crear-factura", async (req, res) => {
       return res.status(400).json({ error: "Faltan productos/items" });
     }
 
+    const lineas = [];
+
+    for (const item of items) {
+      const itemId = item.itemId || item.id;
+
+      if (!itemId) {
+        throw new Error("Un producto no tiene itemId");
+      }
+
+      const queryProducto = encodeURIComponent(
+        `SELECT * FROM Item WHERE Id = '${itemId}'`
+      );
+
+      const productoData = await qboGet(
+        `/query?query=${queryProducto}&minorversion=75`
+      );
+
+      const productoQB = productoData.QueryResponse?.Item?.[0];
+
+      if (!productoQB) {
+        throw new Error("Producto no encontrado en QuickBooks: " + itemId);
+      }
+
+      const qty = Number(item.qty || item.quantity || item.cantidad || 1);
+      const unitPrice = Number(
+        productoQB.UnitPrice ||
+        item.unitPrice ||
+        item.price ||
+        item.precio ||
+        0
+      );
+
+      const descripcion =
+        productoQB.SalesDescription ||
+        productoQB.Description ||
+        productoQB.PurchaseDesc ||
+        item.description ||
+        item.descripcion ||
+        productoQB.Name ||
+        item.name ||
+        "";
+
+      lineas.push({
+        DetailType: "SalesItemLineDetail",
+        Amount: Number((qty * unitPrice).toFixed(2)),
+        Description: descripcion,
+        SalesItemLineDetail: {
+          ItemRef: {
+            value: String(itemId),
+            name: productoQB.Name || item.name || "",
+          },
+          Qty: qty,
+          UnitPrice: unitPrice,
+        },
+      });
+    }
+
     const invoice = {
       CustomerRef: {
         value: String(customerId),
       },
-      Line: items.map((item) => {
-        const qty = Number(item.qty || item.quantity || item.cantidad || 1);
-        const unitPrice = Number(item.unitPrice || item.price || item.precio || 0);
-        const itemId = item.itemId || item.id;
-
-        if (!itemId) {
-          throw new Error("Producto sin itemId");
-        }
-
-        return {
-          DetailType: "SalesItemLineDetail",
-          Amount: Number((qty * unitPrice).toFixed(2)),
-          Description:
-            item.description ||
-            item.descripcion ||
-            item.name ||
-            item.nombre ||
-            "",
-          SalesItemLineDetail: {
-            ItemRef: {
-              value: String(itemId),
-            },
-            Qty: qty,
-            UnitPrice: unitPrice,
-          },
-        };
-      }),
+      Line: lineas,
     };
 
     console.log("FACTURA A ENVIAR A QUICKBOOKS:");
     console.log(JSON.stringify(invoice, null, 2));
 
     const data = await qboPost("/invoice?minorversion=75", invoice);
+    const facturaCreada = data.Invoice;
+
+    let cliente = null;
+    let emailClienteFinal = customerEmail || "";
+
+    try {
+      const clienteData = await qboGet(
+        `/query?query=${encodeURIComponent(
+          `SELECT * FROM Customer WHERE Id = '${customerId}'`
+        )}&minorversion=75`
+      );
+
+      cliente = clienteData.QueryResponse?.Customer?.[0] || null;
+
+      if (!emailClienteFinal && cliente) {
+        emailClienteFinal = obtenerEmailCliente(cliente);
+      }
+    } catch (errorCliente) {
+      console.log("NO SE PUDO OBTENER EMAIL DEL CLIENTE:");
+      console.log(errorCliente.response?.data || errorCliente.message || errorCliente);
+    }
+
+    let resultadoCorreo = {
+      enviado: false,
+      motivo: "No intentado",
+    };
+
+    try {
+      resultadoCorreo = await enviarFacturaPorCorreo({
+        clienteEmail: emailClienteFinal,
+        clienteNombre:
+          customerName ||
+          cliente?.DisplayName ||
+          cliente?.FullyQualifiedName ||
+          "Cliente",
+        bossEmail: process.env.BOSS_EMAIL || process.env.JEFE_EMAIL || "",
+        invoice: facturaCreada,
+        items,
+      });
+    } catch (errorCorreo) {
+      console.log("ERROR ENVIANDO CORREO:");
+      console.log(errorCorreo.response?.data || errorCorreo.message || errorCorreo);
+
+      resultadoCorreo = {
+        enviado: false,
+        motivo: errorCorreo.message || String(errorCorreo),
+      };
+    }
 
     res.json({
       success: true,
-      invoice: data.Invoice,
+      invoice: facturaCreada,
       quickbooks: data,
+      email: resultadoCorreo,
     });
   } catch (error) {
     console.log("ERROR CREANDO FACTURA:");
-    console.log(error.response?.data || error.message || error);
+    console.log(
+      JSON.stringify(error.response?.data || error.message || error, null, 2)
+    );
 
     res.status(500).json({
       error: "Error creando factura",
@@ -852,7 +915,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log("=================================");
   console.log("SERVIDOR CORRIENDO");
   console.log("PUERTO:", PORT);
