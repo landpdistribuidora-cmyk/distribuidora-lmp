@@ -327,11 +327,16 @@ catalogoMaestro.forEach(item => {
         .replace(/^-+|-+$/g, "");
     }
 
-    function obtenerImagenProducto(p) {
-    if (p.catalogo && p.catalogo.imagen) {
-        return p.catalogo.imagen;
-    }
-    return "images/logo-nuevo.jpg";
+   function obtenerImagenProducto(p) {
+    const codigo =
+        p.catalogo?.productoQuickBooksPrincipal ||
+        p.Sku ||
+        p.Name ||
+        "";
+
+    const archivo = limpiarNombreArchivo(codigo);
+
+    return `images/productos/${archivo}.jpg`;
 }
 
     function cambiarCantidad(delta) {
