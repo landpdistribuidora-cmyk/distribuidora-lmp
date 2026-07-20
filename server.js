@@ -7,9 +7,19 @@ const path = require("path");
 const axios = require("axios");
 const OAuthClient = require("intuit-oauth");
 const nodemailer = require("nodemailer");
-
+const multer = require("multer");
 const app = express();
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, "images", "productos"));
+  },
+  filename: (req, file, cb) => {
+    const nombre = Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
+    cb(null, nombre);
+  }
+});
 
+const upload = multer({ storage });
 const PORT = process.env.PORT || 3000;
 const TOKEN_FILE = "qbo-token.json";
 const ORDERS_FILE = "orders.json";
@@ -21,7 +31,43 @@ const REDIRECT_URI =
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(__dirname));
+app.post("/api/productos/:id/imagen", upload.single("imagen"), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No se recibió ninguna imagen" });
+    }
 
+    const id = String(req.params.id);
+    const rutaImagen = `/images/productos/${req.file.filename}`;
+
+    const archivoCatalogo = path.join(__dirname, "catalogo_maestro_sistema.json");
+    const catalogo = JSON.parse(fs.readFileSync(archivoCatalogo, "utf8"));
+
+    const producto = catalogo.find(
+      p => String(p.Id || p.id) === id
+    );
+
+    if (!producto) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
+
+    producto.imagen = rutaImagen;
+
+    fs.writeFileSync(
+      archivoCatalogo,
+      JSON.stringify(catalogo, null, 2),
+      "utf8"
+    );
+
+    res.json({
+      ok: true,
+      imagen: rutaImagen
+    });
+  } catch (error) {
+    console.error("Error guardando imagen:", error);
+    res.status(500).json({ error: "No se pudo guardar la imagen" });
+  }
+});
 app.get("/favicon.ico", (req, res) => {
   res.status(204).end();
 });

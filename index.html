@@ -373,24 +373,37 @@ catalogoMaestro.forEach(item => {
       function seleccionarImagenProducto(id) {
   document.getElementById(`imagen-${id}`).click();
 }
-
-function guardarImagenProducto(id, input) {
+async function guardarImagenProducto(id, input) {
   const archivo = input.files[0];
-
   if (!archivo) return;
 
-  const lector = new FileReader();
+  const datos = new FormData();
+  datos.append("imagen", archivo);
 
-  lector.onload = function () {
+  try {
+    const respuesta = await fetch(`/api/productos/${id}/imagen`, {
+      method: "POST",
+      body: datos
+    });
+
+    const resultado = await respuesta.json();
+
+    if (!respuesta.ok) {
+      throw new Error(resultado.error || "Error al guardar la imagen");
+    }
+
     const producto = productos.find(p => String(p.Id) === String(id));
 
-    if (!producto) return;
+    if (producto) {
+      producto.imagen = resultado.imagen;
+      mostrarProductos();
+    }
 
-    producto.imagenTemporal = lector.result;
-    mostrarProductos();
-  };
-
-  lector.readAsDataURL(archivo);
+    alert("Imagen guardada correctamente.");
+  } catch (error) {
+    console.error(error);
+    alert(error.message);
+  }
 }
       const divProductos = document.getElementById("productos");
       const buscar = normalizar(document.getElementById("buscarProducto").value);
