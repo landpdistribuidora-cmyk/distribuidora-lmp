@@ -70,7 +70,7 @@ async function abrirCamara(){
  scanner=new Html5Qrcode("reader");
  try{
   await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:280,height:160}},
-   async t=>{input.value=t;document.getElementById("estado").textContent="Código detectado: "+t;await cerrarCamara();guardarYSeguir()},
+ async t=>{input.value=t;document.getElementById("estado").textContent="Código detectado: "+t+". Revisa el número y presiona Guardar y siguiente.";await cerrarCamara();},
    ()=>{});
   activa=true;
  }catch(e){document.getElementById("estado").textContent="No se pudo abrir la cámara. Usa Chrome y permite acceso."}
