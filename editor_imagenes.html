@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Editor de imágenes</title>
+
+<style>
+body{
+    font-family:Arial;
+    margin:20px;
+    background:#f5f5f5;
+}
+
+.card{
+    background:white;
+    border-radius:10px;
+    padding:15px;
+    margin-bottom:15px;
+    display:flex;
+    gap:20px;
+    align-items:center;
+}
+
+img{
+    width:140px;
+    height:140px;
+    object-fit:contain;
+    border:1px solid #ccc;
+    background:white;
+}
+
+select{
+    width:350px;
+    padding:8px;
+}
+
+button{
+    padding:10px 18px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h2>Editor de imágenes</h2>
+
+<div id="lista"></div>
+
+<script>
+
+async function cargar(){
+
+const productos=await fetch("/api/productos").then(r=>r.json());
+const imagenes=await fetch("/api/imagenes-disponibles").then(r=>r.json());
+
+const div=document.getElementById("lista");
+
+div.innerHTML="";
+
+productos.forEach(p=>{
+
+const opciones=imagenes.map(i=>{
+
+const s=p.imagen && p.imagen.includes(i)?"selected":"";
+
+return `<option ${s}>${i}</option>`;
+
+}).join("");
+
+div.innerHTML+=`
+<div class="card">
+
+<img src="${p.imagen||'/logo.png'}">
+
+<div>
+
+<h3>${p.Name}</h3>
+
+<select id="img_${p.Id}">
+${opciones}
+</select>
+
+</div>
+
+</div>
+`;
+
+});
+
+}
+
+cargar();
+
+</script>
+
+</body>
+</html>

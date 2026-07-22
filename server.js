@@ -31,6 +31,21 @@ const REDIRECT_URI =
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 app.use(express.static(__dirname));
+app.get("/api/imagenes-disponibles", (req, res) => {
+  try {
+    const carpeta = path.join(__dirname, "images", "productos");
+
+    const imagenes = fs
+      .readdirSync(carpeta)
+      .filter(nombre => /\.(jpg|jpeg|png|webp|gif)$/i.test(nombre))
+      .sort();
+
+    res.json(imagenes);
+  } catch (error) {
+    console.error("Error leyendo imágenes:", error);
+    res.status(500).json({ error: "No se pudieron leer las imágenes" });
+  }
+});
 app.post("/api/productos/:id/imagen", upload.single("imagen"), (req, res) => {
   try {
     if (!req.file) {
