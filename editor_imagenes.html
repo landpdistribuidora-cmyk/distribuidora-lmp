@@ -51,7 +51,8 @@ button{
 
 async function cargar(){
 
-const productos=await fetch("/catalogo_maestro_sistema.json").then(r=>r.json());
+const datosCatalogo = await fetch("/catalogo_maestro_sistema.json").then(r => r.json());
+const productos = Array.isArray(datosCatalogo) ? datosCatalogo : (datosCatalogo.productos || datosCatalogo.catalogo || []);
 const imagenes=await fetch("/api/imagenes-disponibles").then(r=>r.json());
 
 const div=document.getElementById("lista");
