@@ -51,7 +51,7 @@ button{
 
 async function cargar(){
 
-const productos=await fetch("/api/productos").then(r=>r.json());
+const productos=await fetch("/catalogo_maestro_sistema.json").then(r=>r.json());
 const imagenes=await fetch("/api/imagenes-disponibles").then(r=>r.json());
 
 const div=document.getElementById("lista");
