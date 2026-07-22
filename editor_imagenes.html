@@ -52,7 +52,7 @@ button{
 async function cargar(){
 
 const datosCatalogo = await fetch("/catalogo_maestro_sistema.json").then(r => r.json());
-const productos = Array.isArray(datosCatalogo) ? datosCatalogo : (datosCatalogo.productos || datosCatalogo.catalogo || []);
+const productos = datosCatalogo.productos || [];
 const imagenes=await fetch("/api/imagenes-disponibles").then(r=>r.json());
 
 const div=document.getElementById("lista");
@@ -76,7 +76,7 @@ div.innerHTML+=`
 
 <div>
 
-<h3>${p.Name}</h3>
+<h3>${p.nombreVisible}</h3>
 
 <select id="img_${p.Id}">
 ${opciones}
