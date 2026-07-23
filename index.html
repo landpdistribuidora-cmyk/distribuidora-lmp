@@ -368,9 +368,7 @@ catalogoMaestro.forEach(item => {
       const nombre = obtenerNombreProducto(p).toLowerCase();
       return categorias[categoria].some(palabra => nombre.includes(palabra));
     }
-
-    function mostrarProductos() {
-      function seleccionarImagenProducto(id) {
+    function seleccionarImagenProducto(id) {
   document.getElementById(`imagen-${id}`).click();
 }
 async function guardarImagenProducto(id, input) {
@@ -405,6 +403,8 @@ async function guardarImagenProducto(id, input) {
     alert(error.message);
   }
 }
+    function mostrarProductos() {
+  
       const divProductos = document.getElementById("productos");
       const buscar = normalizar(document.getElementById("buscarProducto").value);
       divProductos.innerHTML = "";
