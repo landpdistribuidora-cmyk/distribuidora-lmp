@@ -437,9 +437,11 @@ async function guardarImagenProducto(id, input) {
           <img src="${imagen}" alt="${nombre}" onerror="this.onerror=null; this.src='images/logo-nuevo.jpg';">
           <h3>${nombre}</h3>
           <p>$${precio.toFixed(2)}</p>
-          <button class="btn-yellow" onclick="event.stopPropagation(); seleccionarImagenProducto('${p.Id}')">
+          <label for="imagen-${p.Id}" class="btn-yellow"
+  style="display:block; padding:13px; border-radius:12px; cursor:pointer;"
+  onclick="event.stopPropagation()">
   Agregar / Cambiar imagen
-</button>
+</label>
 <input
   type="file"
   id="imagen-${p.Id}"
