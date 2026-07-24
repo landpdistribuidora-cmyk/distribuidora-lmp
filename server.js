@@ -58,9 +58,16 @@ app.post("/api/productos/:id/imagen", upload.single("imagen"), (req, res) => {
     const archivoCatalogo = path.join(__dirname, "catalogo_maestro_sistema.json");
     const catalogo = JSON.parse(fs.readFileSync(archivoCatalogo, "utf8"));
 
-const producto = catalogo.productos.find(
-      p => String(p.Id || p.id) === id
-    );
+const producto = catalogo.productos.find(p => {
+  const principal = String(p.productoQuickBooksPrincipal || "");
+  const equivalentes = p.productosQuickBooksEquivalentes || [];
+
+  return (
+    String(p.Id || p.id || "") === id ||
+    principal === id ||
+    equivalentes.map(String).includes(id)
+  );
+});
 
     if (!producto) {
       return res.status(404).json({ error: "Producto no encontrado" });
