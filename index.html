@@ -377,7 +377,7 @@ async function guardarImagenProducto(id, input) {
 
   const datos = new FormData();
   datos.append("imagen", archivo);
-
+console.log("ID enviado:", id);
   try {
     const respuesta = await fetch(`/api/productos/${id}/imagen`, {
       method: "POST",
@@ -447,7 +447,7 @@ async function guardarImagenProducto(id, input) {
   id="imagen-${p.Id}"
   accept="image/*"
   style="display:none"
-  onchange="guardarImagenProducto('${p.Id}', this)"
+onchange="guardarImagenProducto('${p.catalogo?.productoQuickBooksPrincipal || p.Id}', this)"
 >
         `;
         card.onclick = () => agregarProducto(p, Number(document.getElementById("cantidadProducto").value || 1));
