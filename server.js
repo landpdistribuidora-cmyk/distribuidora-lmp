@@ -58,7 +58,7 @@ app.post("/api/productos/:id/imagen", upload.single("imagen"), (req, res) => {
     const archivoCatalogo = path.join(__dirname, "catalogo_maestro_sistema.json");
     const catalogo = JSON.parse(fs.readFileSync(archivoCatalogo, "utf8"));
 
-    const producto = catalogo.find(
+const producto = catalogo.productos.find(
       p => String(p.Id || p.id) === id
     );
 
