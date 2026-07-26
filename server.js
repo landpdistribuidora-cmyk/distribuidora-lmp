@@ -9,9 +9,32 @@ const OAuthClient = require("intuit-oauth");
 const nodemailer = require("nodemailer");
 const multer = require("multer");
 const app = express();
+
+const REPO_IMAGES_DIR = path.join(__dirname, "images", "productos");
+const PERSISTENT_DATA_DIR =
+  process.env.PERSISTENT_DATA_DIR || path.join(__dirname, "persistent-data");
+const PERSISTENT_IMAGES_DIR = path.join(PERSISTENT_DATA_DIR, "productos");
+const IMAGE_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "imagenes-productos.json");
+
+fs.mkdirSync(PERSISTENT_IMAGES_DIR, { recursive: true });
+
+function leerMapaImagenes() {
+  try {
+    if (!fs.existsSync(IMAGE_MAP_FILE)) return {};
+    return JSON.parse(fs.readFileSync(IMAGE_MAP_FILE, "utf8"));
+  } catch (error) {
+    console.error("Error leyendo mapa de imágenes:", error);
+    return {};
+  }
+}
+
+function guardarMapaImagenes(mapa) {
+  fs.writeFileSync(IMAGE_MAP_FILE, JSON.stringify(mapa, null, 2), "utf8");
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "images", "productos"));
+    cb(null, PERSISTENT_IMAGES_DIR);
   },
   filename: (req, file, cb) => {
     const nombre = Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
@@ -30,15 +53,24 @@ const REDIRECT_URI =
 
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
+app.use("/images/productos", express.static(PERSISTENT_IMAGES_DIR));
 app.use(express.static(__dirname));
+app.get("/api/imagenes-productos", (req, res) => {
+  res.json(leerMapaImagenes());
+});
 app.get("/api/imagenes-disponibles", (req, res) => {
   try {
-    const carpeta = path.join(__dirname, "images", "productos");
-
-    const imagenes = fs
-      .readdirSync(carpeta)
-      .filter(nombre => /\.(jpg|jpeg|png|webp|gif)$/i.test(nombre))
-      .sort();
+    const imagenes = [
+      ...new Set(
+        [REPO_IMAGES_DIR, PERSISTENT_IMAGES_DIR].flatMap(carpeta =>
+          fs.existsSync(carpeta)
+            ? fs
+                .readdirSync(carpeta)
+                .filter(nombre => /\.(jpg|jpeg|png|webp|gif)$/i.test(nombre))
+            : []
+        )
+      )
+    ].sort();
 
     res.json(imagenes);
   } catch (error) {
@@ -70,16 +102,27 @@ const producto = catalogo.productos.find(p => {
 });
 
     if (!producto) {
+      fs.unlink(req.file.path, () => {});
       return res.status(404).json({ error: "Producto no encontrado" });
     }
 
-    producto.imagen = rutaImagen;
+    const claveProducto =
+      String(producto.productoQuickBooksPrincipal || "").trim() || id;
+    const mapaImagenes = leerMapaImagenes();
+    const rutaAnterior = mapaImagenes[claveProducto];
 
-    fs.writeFileSync(
-      archivoCatalogo,
-      JSON.stringify(catalogo, null, 2),
-      "utf8"
-    );
+    mapaImagenes[claveProducto] = rutaImagen;
+    guardarMapaImagenes(mapaImagenes);
+
+    if (rutaAnterior && rutaAnterior !== rutaImagen) {
+      const archivoAnterior = path.join(
+        PERSISTENT_IMAGES_DIR,
+        path.basename(rutaAnterior)
+      );
+      if (fs.existsSync(archivoAnterior)) {
+        fs.unlink(archivoAnterior, () => {});
+      }
+    }
 
     res.json({
       ok: true,
