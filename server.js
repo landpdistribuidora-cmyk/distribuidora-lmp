@@ -60,7 +60,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 const PORT = process.env.PORT || 3000;
-const TOKEN_FILE = "qbo-token.json";
+// El token debe vivir en el volumen de Railway para sobrevivir despliegues y reinicios.
+const TOKEN_FILE = path.join(PERSISTENT_DATA_DIR, "qbo-token.json");
 const ORDERS_FILE = "orders.json";
 const BARCODES_FILE = "barcodes.json";
 
