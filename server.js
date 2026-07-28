@@ -62,7 +62,7 @@ const upload = multer({ storage });
 const PORT = process.env.PORT || 3000;
 // El token debe vivir en el volumen de Railway para sobrevivir despliegues y reinicios.
 const TOKEN_FILE = path.join(PERSISTENT_DATA_DIR, "qbo-token.json");
-const ORDERS_FILE = "orders.json";
+const ORDERS_FILE = path.join(PERSISTENT_DATA_DIR, "orders.json");
 const BARCODES_FILE = "barcodes.json";
 
 const REDIRECT_URI =
@@ -420,6 +420,14 @@ function guardarJsonArchivo(nombreArchivo, data) {
 }
 
 function leerOrdenes() {
+  const legacyFile = path.join(__dirname, "orders.json");
+  if (!fs.existsSync(ORDERS_FILE) && fs.existsSync(legacyFile) && legacyFile !== ORDERS_FILE) {
+    try {
+      fs.copyFileSync(legacyFile, ORDERS_FILE);
+    } catch (error) {
+      console.error("No se pudo migrar el archivo anterior de pedidos:", error);
+    }
+  }
   return leerJsonArchivo(ORDERS_FILE, []);
 }
 
@@ -527,6 +535,36 @@ function crearHtmlFactura({ clienteNombre, invoice, items }) {
       <p>Gracias por su compra.</p>
     </div>
   `;
+}
+
+function crearHtmlPedidoPendiente({ clienteNombre, orderId, items }) {
+  const filas = (Array.isArray(items) ? items : []).map((item) => {
+    const nombre = sinPrefijoQuickBooks(
+      item.name || item.nombre || item.qboNombre || item.description || "Producto"
+    );
+    const qty = Number(item.qty || item.quantity || item.cantidad || 1);
+    const precio = Number(item.unitPrice || item.price || item.precio || 0);
+    return `<tr><td>${nombre}</td><td style="text-align:center;">${qty}</td><td style="text-align:right;">$${formatoDinero(precio * qty)}</td></tr>`;
+  }).join("");
+  const total = (Array.isArray(items) ? items : []).reduce(
+    (s, item) => s + Number(item.unitPrice || item.price || item.precio || 0) * Number(item.qty || item.quantity || item.cantidad || 1),
+    0
+  );
+  return `<div style="font-family:Arial,sans-serif;color:#111827;"><h2>Pedido pendiente de autorización</h2><p><strong>Pedido:</strong> ${orderId}</p><p><strong>Cliente:</strong> ${clienteNombre || "Cliente"}</p><table style="width:100%;border-collapse:collapse;margin-top:15px;"><thead><tr><th style="border-bottom:1px solid #ddd;text-align:left;">Producto</th><th style="border-bottom:1px solid #ddd;">Cantidad</th><th style="border-bottom:1px solid #ddd;text-align:right;">Subtotal</th></tr></thead><tbody>${filas}</tbody></table><h2 style="text-align:right;">Total: $${formatoDinero(total)}</h2><p>Revísalo en la aplicación para aprobarlo y crear la factura en QuickBooks.</p></div>`;
+}
+
+async function enviarPedidoPendientePorCorreo({ clienteEmail, clienteNombre, bossEmail, orderId, items }) {
+  const transporter = crearTransporterCorreo();
+  if (!transporter) return { enviado: false, motivo: "SMTP no configurado" };
+  const destinatarios = [clienteEmail, bossEmail].filter(Boolean);
+  if (!destinatarios.length) return { enviado: false, motivo: "No hay correos destino" };
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: destinatarios.join(","),
+    subject: `Pedido pendiente de autorización #${orderId}`,
+    html: crearHtmlPedidoPendiente({ clienteNombre, orderId, items }),
+  });
+  return { enviado: true, destinatarios };
 }
 
 async function enviarFacturaPorCorreo({
@@ -833,7 +871,7 @@ app.get("/orders", (req, res) => {
   }
 });
 
-app.post("/orders", (req, res) => {
+app.post("/orders", async (req, res) => {
   try {
     const orders = leerOrdenes();
 
@@ -842,6 +880,7 @@ app.post("/orders", (req, res) => {
       createdAt: new Date().toISOString(),
       customerId: req.body.customerId || req.body.customer?.id || null,
       customerName: req.body.customerName || req.body.customer?.name || null,
+      customerEmail: req.body.customerEmail || req.body.customer?.email || "",
       customer: req.body.customer || null,
       items: req.body.items || [],
       status: "pending",
@@ -850,14 +889,53 @@ app.post("/orders", (req, res) => {
     orders.push(newOrder);
     guardarOrdenes(orders);
 
-    res.json(newOrder);
+    let email = null;
+    try {
+      email = await enviarPedidoPendientePorCorreo({
+        clienteEmail: newOrder.customerEmail,
+        clienteNombre: newOrder.customerName,
+        bossEmail: process.env.BOSS_EMAIL || process.env.JEFE_EMAIL || "",
+        orderId: newOrder.id,
+        items: newOrder.items,
+      });
+    } catch (emailError) {
+      console.error("Error enviando aviso de pedido pendiente:", emailError);
+      email = { enviado: false, motivo: emailError.message || "No se pudo enviar el aviso" };
+    }
+
+    res.json({ ...newOrder, email });
   } catch (error) {
     res.status(500).json({
       error: "Error guardando orden",
       detalle: error.message || String(error),
     });
   }
-  });
+});
+app.post("/orders/:id/status", requiereRol("empleado", "jefe"), (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    if (!id) return res.status(400).json({ error: "Falta el ID del pedido" });
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Estado de pedido no válido" });
+    }
+
+    const orders = leerOrdenes();
+    const order = orders.find((item) => String(item.id) === id);
+    if (!order) return res.status(404).json({ error: "Pedido no encontrado" });
+
+    order.status = status;
+    order.updatedAt = new Date().toISOString();
+    if (req.body?.invoiceId) order.invoiceId = String(req.body.invoiceId);
+    guardarOrdenes(orders);
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({
+      error: "Error actualizando pedido",
+      detalle: error.message || String(error),
+    });
+  }
+});
 app.post("/crear-factura", requiereRol("empleado", "jefe"), async (req, res) => {
   try {
     const {
