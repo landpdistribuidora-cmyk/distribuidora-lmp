@@ -8,6 +8,7 @@ const axios = require("axios");
 const OAuthClient = require("intuit-oauth");
 const nodemailer = require("nodemailer");
 const multer = require("multer");
+const crypto = require("crypto");
 const app = express();
 
 const REPO_IMAGES_DIR = path.join(__dirname, "images", "productos");
@@ -15,6 +16,7 @@ const PERSISTENT_DATA_DIR =
   process.env.PERSISTENT_DATA_DIR || path.join(__dirname, "persistent-data");
 const PERSISTENT_IMAGES_DIR = path.join(PERSISTENT_DATA_DIR, "productos");
 const IMAGE_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "imagenes-productos.json");
+const CATEGORY_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "categorias-productos.json");
 
 fs.mkdirSync(PERSISTENT_IMAGES_DIR, { recursive: true });
 
@@ -30,6 +32,20 @@ function leerMapaImagenes() {
 
 function guardarMapaImagenes(mapa) {
   fs.writeFileSync(IMAGE_MAP_FILE, JSON.stringify(mapa, null, 2), "utf8");
+}
+
+function leerMapaCategorias() {
+  try {
+    if (!fs.existsSync(CATEGORY_MAP_FILE)) return {};
+    return JSON.parse(fs.readFileSync(CATEGORY_MAP_FILE, "utf8"));
+  } catch (error) {
+    console.error("Error leyendo mapa de categorías:", error);
+    return {};
+  }
+}
+
+function guardarMapaCategorias(mapa) {
+  fs.writeFileSync(CATEGORY_MAP_FILE, JSON.stringify(mapa, null, 2), "utf8");
 }
 
 const storage = multer.diskStorage({
@@ -55,8 +71,168 @@ app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 app.use("/images/productos", express.static(PERSISTENT_IMAGES_DIR));
 app.use(express.static(__dirname));
+
+const AUTH_COOKIE = "landp_auth";
+const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
+const AUTH_SECRET = process.env.AUTH_SECRET || "";
+
+function contrasenaRol(rol) {
+  return {
+    empleado: process.env.EMPLOYEE_PASSWORD || "",
+    cliente: process.env.CLIENT_PASSWORD || "",
+    jefe: process.env.ADMIN_PASSWORD || process.env.DEVELOPER_PASSWORD || "",
+  }[rol] || "";
+}
+
+function compararSecreto(entrada, esperado) {
+  if (!entrada || !esperado) return false;
+  const a = Buffer.from(String(entrada));
+  const b = Buffer.from(String(esperado));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function firmaSesion(valor) {
+  return crypto.createHmac("sha256", AUTH_SECRET).update(valor).digest("base64url");
+}
+
+function crearSesion(rol) {
+  const payload = Buffer.from(
+    JSON.stringify({ rol, exp: Date.now() + SESSION_DURATION_MS })
+  ).toString("base64url");
+  return `${payload}.${firmaSesion(payload)}`;
+}
+
+function cookies(req) {
+  return String(req.headers.cookie || "").split(";").reduce((resultado, parte) => {
+    const separador = parte.indexOf("=");
+    if (separador < 0) return resultado;
+    resultado[parte.slice(0, separador).trim()] = decodeURIComponent(
+      parte.slice(separador + 1).trim()
+    );
+    return resultado;
+  }, {});
+}
+
+function leerSesion(req) {
+  if (!AUTH_SECRET) return null;
+  const token = cookies(req)[AUTH_COOKIE];
+  if (!token) return null;
+  const [payload, firma] = token.split(".");
+  if (!payload || !firma || firma !== firmaSesion(payload)) return null;
+
+  try {
+    const sesion = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (!sesion.rol || !contrasenaRol(sesion.rol) || Number(sesion.exp) < Date.now()) {
+      return null;
+    }
+    return sesion;
+  } catch {
+    return null;
+  }
+}
+
+function requiereSesion(req, res, next) {
+  const sesion = leerSesion(req);
+  if (!sesion) {
+    return res.status(401).json({ error: "Inicia sesión para continuar" });
+  }
+  req.sesion = sesion;
+  next();
+}
+
+function requiereRol(...roles) {
+  return (req, res, next) => {
+    if (!req.sesion) {
+      const sesion = leerSesion(req);
+      if (sesion) req.sesion = sesion;
+    }
+    if (!req.sesion || !roles.includes(req.sesion.rol)) {
+      return res.status(403).json({ error: "No tienes permiso para esta función" });
+    }
+    next();
+  };
+}
+
+function cookieSesion(res, valor, maxAge) {
+  const seguro = REDIRECT_URI.startsWith("https://") || process.env.NODE_ENV === "production";
+  res.setHeader(
+    "Set-Cookie",
+    `${AUTH_COOKIE}=${encodeURIComponent(valor)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${seguro ? "; Secure" : ""}`
+  );
+}
+
+app.post("/login", (req, res) => {
+  const rol = String(req.body?.rol || "").trim().toLowerCase();
+  const contrasena = String(req.body?.contrasena || "");
+
+  if (!AUTH_SECRET || !contrasenaRol(rol)) {
+    return res.status(503).json({ error: "Faltan configurar las contraseñas en Railway" });
+  }
+
+  if (!compararSecreto(contrasena, contrasenaRol(rol))) {
+    return res.status(401).json({ error: "Contraseña incorrecta" });
+  }
+
+  cookieSesion(res, crearSesion(rol), Math.floor(SESSION_DURATION_MS / 1000));
+  res.json({ ok: true, rol });
+});
+
+app.get("/session", (req, res) => {
+  const sesion = leerSesion(req);
+  res.json(sesion ? { autenticado: true, rol: sesion.rol } : { autenticado: false });
+});
+
+app.post("/logout", (req, res) => {
+  cookieSesion(res, "", 0);
+  res.json({ ok: true });
+});
+
+const RUTAS_PROTEGIDAS = [
+  "/api/imagenes-productos",
+  "/api/imagenes-disponibles",
+  "/api/categorias-productos",
+  "/api/productos",
+  "/clientes",
+  "/productos",
+  "/buscar-cliente",
+  "/buscar-producto",
+  "/cliente",
+  "/orders",
+  "/crear-factura",
+  "/enviar-factura-email",
+  "/barcodes",
+  "/barcode",
+  "/buscar-por-barcode",
+  "/voice-command",
+  "/catalogo-local",
+];
+
+app.use((req, res, next) => {
+  const protegida = RUTAS_PROTEGIDAS.some(
+    (ruta) => req.path === ruta || req.path.startsWith(`${ruta}/`)
+  );
+  return protegida ? requiereSesion(req, res, next) : next();
+});
+
 app.get("/api/imagenes-productos", (req, res) => {
   res.json(leerMapaImagenes());
+});
+app.get("/api/categorias-productos", (req, res) => {
+  res.json(leerMapaCategorias());
+});
+app.post("/api/productos/:id/categoria", requiereRol("jefe"), (req, res) => {
+  const id = String(req.params.id || "").trim();
+  const categoria = String(req.body?.categoria || "").trim();
+
+  if (!id) return res.status(400).json({ error: "Falta el ID del producto" });
+  if (!categoria || categoria.length > 80) {
+    return res.status(400).json({ error: "Selecciona una categoría válida" });
+  }
+
+  const mapa = leerMapaCategorias();
+  mapa[id] = categoria;
+  guardarMapaCategorias(mapa);
+  res.json({ ok: true, id, categoria });
 });
 app.get("/api/imagenes-disponibles", (req, res) => {
   try {
@@ -78,7 +254,7 @@ app.get("/api/imagenes-disponibles", (req, res) => {
     res.status(500).json({ error: "No se pudieron leer las imágenes" });
   }
 });
-app.post("/api/productos/:id/imagen", upload.single("imagen"), (req, res) => {
+app.post("/api/productos/:id/imagen", requiereRol("empleado", "jefe"), upload.single("imagen"), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No se recibió ninguna imagen" });
@@ -266,6 +442,12 @@ function limpiarTexto(texto) {
     .trim();
 }
 
+function sinPrefijoQuickBooks(valor) {
+  const texto = String(valor || "").trim();
+  const separador = texto.lastIndexOf(":");
+  return (separador >= 0 ? texto.slice(separador + 1) : texto).trim();
+}
+
 function obtenerEmailCliente(customer) {
   return (
     customer?.PrimaryEmailAddr?.Address ||
@@ -305,7 +487,9 @@ function crearHtmlFactura({ clienteNombre, invoice, items }) {
   }, 0);
 
   const filas = items.map((item) => {
-    const nombre = item.name || item.description || item.itemName || "Producto";
+    const nombre = sinPrefijoQuickBooks(
+      item.name || item.nombre || item.description || item.descripcion || item.itemName || "Producto"
+    );
     const qty = Number(item.qty || item.quantity || 1);
     const precio = Number(item.unitPrice || item.price || 0);
     const subtotal = qty * precio;
@@ -413,7 +597,7 @@ app.get("/catalogo-local", (req, res) => {
     });
   }
 });
-app.get("/connect-qbo", (req, res) => {
+app.get("/connect-qbo", requiereRol("jefe"), (req, res) => {
   const authUri = oauthClient.authorizeUri({
     scope: [OAuthClient.scopes.Accounting],
     state: "LandPReal",
@@ -673,9 +857,15 @@ app.post("/orders", (req, res) => {
     });
   }
   });
-app.post("/crear-factura", async (req, res) => {
+app.post("/crear-factura", requiereRol("empleado", "jefe"), async (req, res) => {
   try {
-    const { customerId, items } = req.body;
+    const {
+      customerId,
+      customerName,
+      customerEmail,
+      sendEmail,
+      items,
+    } = req.body;
 
     if (!customerId) {
       return res.status(400).json({ error: "Falta customerId" });
@@ -693,6 +883,13 @@ app.post("/crear-factura", async (req, res) => {
         const qty = Number(item.qty || item.quantity || item.cantidad || 1);
         const unitPrice = Number(item.unitPrice || item.price || item.precio || 0);
         const itemId = item.itemId || item.id;
+        const nombre = sinPrefijoQuickBooks(
+          item.quickbooksName || item.qboName || item.name || item.nombre ||
+            item.description || item.descripcion || "Producto"
+        );
+        const descripcion = sinPrefijoQuickBooks(
+          item.description || item.descripcion || nombre
+        );
 
         if (!itemId) {
           throw new Error("Producto sin itemId");
@@ -701,15 +898,11 @@ app.post("/crear-factura", async (req, res) => {
         return {
           DetailType: "SalesItemLineDetail",
           Amount: Number((qty * unitPrice).toFixed(2)),
-          Description:
-            item.description ||
-            item.descripcion ||
-            item.name ||
-            item.nombre ||
-            "",
+          Description: descripcion,
           SalesItemLineDetail: {
             ItemRef: {
               value: String(itemId),
+              name: nombre,
             },
             Qty: qty,
             UnitPrice: unitPrice,
@@ -722,11 +915,32 @@ app.post("/crear-factura", async (req, res) => {
     console.log(JSON.stringify(invoice, null, 2));
 
     const data = await qboPost("/invoice?minorversion=75", invoice);
+    let email = null;
+
+    if (sendEmail) {
+      try {
+        email = await enviarFacturaPorCorreo({
+          clienteEmail: customerEmail || "",
+          clienteNombre: customerName || "Cliente",
+          bossEmail: process.env.BOSS_EMAIL || process.env.JEFE_EMAIL || "",
+          invoice: data.Invoice,
+          items,
+        });
+      } catch (emailError) {
+        console.log("ERROR ENVIANDO COPIA DE FACTURA POR CORREO:");
+        console.log(emailError.response?.data || emailError.message || emailError);
+        email = {
+          enviado: false,
+          motivo: emailError.message || "No se pudo enviar el correo",
+        };
+      }
+    }
 
     res.json({
       success: true,
       invoice: data.Invoice,
       quickbooks: data,
+      email,
     });
   } catch (error) {
     console.log("ERROR CREANDO FACTURA:");
@@ -738,7 +952,7 @@ app.post("/crear-factura", async (req, res) => {
     });
   }
 });
-app.post("/enviar-factura-email", async (req, res) => {
+app.post("/enviar-factura-email", requiereRol("empleado", "jefe"), async (req, res) => {
   try {
     const { invoiceId, customerId, items } = req.body;
 
@@ -798,7 +1012,7 @@ app.get("/barcodes", (req, res) => {
   }
 });
 
-app.post("/barcodes", (req, res) => {
+app.post("/barcodes", requiereRol("empleado", "jefe"), (req, res) => {
   try {
     const nuevo = req.body || {};
 
