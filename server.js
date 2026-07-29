@@ -1199,7 +1199,25 @@ app.post("/barcodes", requiereRol("empleado", "jefe"), (req, res) => {
     const data = leerBarcodes();
 
     const barcode = String(nuevo.barcode || nuevo.code || nuevo.codigo).trim();
-    const itemId = String(nuevo.itemId || nuevo.id || "").trim();
+    const productCode = String(nuevo.productCode || nuevo.productCodigo || "").trim();
+    let itemId = String(nuevo.itemId || nuevo.id || "").trim();
+    const productName = nuevo.productName || nuevo.name || "";
+
+    // El capturador conoce el código interno del catálogo, no siempre el Id
+    // numérico de QuickBooks. Intentamos resolverlo una sola vez y guardamos
+    // el Id real para que las búsquedas futuras agreguen el producto.
+    if (productCode || productName) {
+      const cache = leerCacheProductos();
+      const items = cache?.data?.QueryResponse?.Item || [];
+      const objetivo = limpiarTexto(productCode || productName);
+      const encontradoQbo = items.find((item) => {
+        const nombres = [item.Name, item.FullyQualifiedName, item.Sku, item.Description]
+          .filter(Boolean)
+          .map(limpiarTexto);
+        return nombres.some((nombre) => nombre === objetivo || nombre.endsWith(`:${objetivo}`) || nombre.includes(objetivo));
+      });
+      if (encontradoQbo?.Id) itemId = String(encontradoQbo.Id);
+    }
 
     const existente = data.find((x) => {
       return String(x.barcode || x.code || x.codigo || "").trim() === barcode;
@@ -1207,14 +1225,15 @@ app.post("/barcodes", requiereRol("empleado", "jefe"), (req, res) => {
 
     if (existente) {
       existente.itemId = itemId || existente.itemId;
-      existente.productName =
-        nuevo.productName || nuevo.name || existente.productName || "";
+      existente.productCode = productCode || existente.productCode || "";
+      existente.productName = productName || existente.productName || "";
       existente.updatedAt = new Date().toISOString();
     } else {
       data.push({
         barcode,
         itemId,
-        productName: nuevo.productName || nuevo.name || "",
+        productCode,
+        productName,
         createdAt: new Date().toISOString(),
       });
     }
@@ -1282,12 +1301,25 @@ app.post("/buscar-por-barcode", async (req, res) => {
       });
     }
 
-    const query = encodeURIComponent(
-      `SELECT * FROM Item WHERE Id = '${encontrado.itemId}'`
-    );
+    let producto = null;
+    if (/^\d+$/.test(String(encontrado.itemId))) {
+      const query = encodeURIComponent(
+        `SELECT * FROM Item WHERE Id = '${encontrado.itemId}'`
+      );
+      const productoData = await qboGet(`/query?query=${query}&minorversion=75`);
+      producto = productoData.QueryResponse?.Item?.[0] || null;
+    }
 
-    const productoData = await qboGet(`/query?query=${query}&minorversion=75`);
-    const producto = productoData.QueryResponse?.Item?.[0] || null;
+    // Respaldo para códigos guardados antes de conocer el Id numérico de QBO.
+    if (!producto) {
+      const cache = leerCacheProductos();
+      const items = cache?.data?.QueryResponse?.Item || [];
+      const objetivo = limpiarTexto(encontrado.productCode || encontrado.productName || encontrado.itemId);
+      producto = items.find((item) => [item.Name, item.FullyQualifiedName, item.Sku, item.Description]
+        .filter(Boolean)
+        .map(limpiarTexto)
+        .some((nombre) => nombre === objetivo || nombre.endsWith(`:${objetivo}`) || nombre.includes(objetivo))) || null;
+    }
 
     if (!producto) {
       return res.status(404).json({

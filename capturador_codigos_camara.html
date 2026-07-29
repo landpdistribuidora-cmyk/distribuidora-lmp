@@ -33,7 +33,7 @@ button{width:100%;padding:14px;border:0;border-radius:12px;margin-top:10px;font-
 <button class="warn" onclick="saltar()">Saltar</button>
 </div>
 <div id="estado" class="status"></div>
-<p class="small">El avance se guarda automáticamente en este teléfono.</p>
+<p class="small">Cada código se guarda en el servidor para usarlo en futuros pedidos.</p>
 </div>
 <div class="card">
 <input id="buscar" placeholder="Buscar producto">
@@ -79,11 +79,20 @@ async function cerrarCamara(){
  if(scanner&&activa){try{await scanner.stop()}catch(e){} try{await scanner.clear()}catch(e){}}
  activa=false;document.getElementById("reader").style.display="none";
 }
-function guardarYSeguir(){
+async function guardarYSeguir(){
  const v=input.value.trim(); if(!v){document.getElementById("estado").textContent="Escanea o escribe un código.";return}
  const rep=Object.entries(capturas).find(([c,b])=>b===v&&c!==actual().codigo);
  if(rep){document.getElementById("estado").textContent="Código repetido. Ya pertenece a: "+rep[0];return}
- capturas[actual().codigo]=v;if(indice<PRODUCTOS.length-1)indice++;save();render();
+ const p=actual();
+ try{
+  const r=await fetch("/barcodes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({barcode:v,productCode:p.codigo,productName:p.nombre})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||"No se pudo guardar en el servidor");
+  capturas[p.codigo]=v;if(indice<PRODUCTOS.length-1)indice++;save();render();
+  document.getElementById("estado").textContent="Guardado en el servidor. Siguiente producto.";
+ }catch(e){
+  document.getElementById("estado").textContent="No se guardó en el servidor: "+e.message;
+ }
 }
 function anterior(){if(indice>0)indice--;render()}
 function saltar(){if(indice<PRODUCTOS.length-1)indice++;render()}
@@ -101,7 +110,16 @@ function exportarCSV(){
 }
 function exportarJSON(){download("respaldo_codigos_barras_lnp.json",JSON.stringify({indice,capturas,total:PRODUCTOS.length},null,2),"application/json")}
 input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();guardarYSeguir()}});
-render();
+async function cargarGuardadosServidor(){
+ try{
+  const r=await fetch("/barcodes",{cache:"no-store"});
+  if(!r.ok)return;
+  const data=await r.json();
+  data.forEach(x=>{const key=x.productCode||x.itemId;if(key&&x.barcode)capturas[key]=String(x.barcode)});
+  save();
+ }catch(e){console.warn("No se pudieron cargar códigos del servidor",e)}
+}
+cargarGuardadosServidor().finally(render);
 </script>
 </body>
 </html>
