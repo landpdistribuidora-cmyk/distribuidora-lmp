@@ -557,7 +557,8 @@ function crearHtmlFactura({ clienteNombre, invoice, items }) {
   return `
     <div style="font-family:Arial,sans-serif;color:#111827;">
       <h2>Distribuidora L&P</h2>
-      <p><strong>Factura:</strong> ${docNumber}</p>
+      <p><strong>Folio / Invoice no.:</strong> ${docNumber}</p>
+      <p><strong>ID de QuickBooks:</strong> ${invoice?.Id || "No disponible"}</p>
       <p><strong>Estado:</strong> Factura creada correctamente en QuickBooks.</p>
       <p><strong>Cliente:</strong> ${clienteNombre}</p>
 
