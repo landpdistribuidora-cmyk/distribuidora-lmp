@@ -519,6 +519,10 @@ function crearTransporterCorreo() {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     secure: String(process.env.SMTP_PORT) === "465",
+    // Railway puede resolver smtp.gmail.com a IPv6, pero su contenedor
+    // no siempre tiene salida IPv6. Forzamos IPv4 para evitar ENETUNREACH.
+    family: 4,
+    connectionTimeout: 20000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
