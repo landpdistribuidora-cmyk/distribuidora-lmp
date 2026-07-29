@@ -17,6 +17,8 @@ const PERSISTENT_DATA_DIR =
 const PERSISTENT_IMAGES_DIR = path.join(PERSISTENT_DATA_DIR, "productos");
 const IMAGE_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "imagenes-productos.json");
 const CATEGORY_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "categorias-productos.json");
+const PRODUCTS_CACHE_FILE = path.join(PERSISTENT_DATA_DIR, "productos-qbo-cache.json");
+const PRODUCTS_CACHE_TTL_MS = 60 * 1000;
 
 fs.mkdirSync(PERSISTENT_IMAGES_DIR, { recursive: true });
 
@@ -377,6 +379,45 @@ async function qboGet(pathUrl) {
   return response.data;
 }
 
+let productosRefreshEnCurso = null;
+
+function leerCacheProductos() {
+  try {
+    if (!fs.existsSync(PRODUCTS_CACHE_FILE)) return null;
+    const cache = JSON.parse(fs.readFileSync(PRODUCTS_CACHE_FILE, "utf8"));
+    return cache && cache.data ? cache : null;
+  } catch (error) {
+    console.error("Error leyendo caché de productos:", error);
+    return null;
+  }
+}
+
+function guardarCacheProductos(data) {
+  fs.writeFileSync(
+    PRODUCTS_CACHE_FILE,
+    JSON.stringify({ updatedAt: Date.now(), data }, null, 2),
+    "utf8"
+  );
+}
+
+function actualizarCacheProductos() {
+  if (productosRefreshEnCurso) return productosRefreshEnCurso;
+  const query = encodeURIComponent("SELECT * FROM Item MAXRESULTS 1000");
+  productosRefreshEnCurso = qboGet(`/query?query=${query}&minorversion=75`)
+    .then((data) => {
+      guardarCacheProductos(data);
+      return data;
+    })
+    .catch((error) => {
+      console.error("No se pudo actualizar el catálogo desde QuickBooks:", error.response?.data || error.message || error);
+      return null;
+    })
+    .finally(() => {
+      productosRefreshEnCurso = null;
+    });
+  return productosRefreshEnCurso;
+}
+
 async function qboGetBinary(pathUrl) {
   const token = await obtenerTokenValido();
   const url = `${qboBaseUrl(token)}${pathUrl}`;
@@ -517,6 +558,7 @@ function crearHtmlFactura({ clienteNombre, invoice, items }) {
     <div style="font-family:Arial,sans-serif;color:#111827;">
       <h2>Distribuidora L&P</h2>
       <p><strong>Factura:</strong> ${docNumber}</p>
+      <p><strong>Estado:</strong> Factura creada correctamente en QuickBooks.</p>
       <p><strong>Cliente:</strong> ${clienteNombre}</p>
 
       <table style="width:100%;border-collapse:collapse;margin-top:15px;">
@@ -567,6 +609,23 @@ async function enviarPedidoPendientePorCorreo({ clienteEmail, clienteNombre, bos
   return { enviado: true, destinatarios };
 }
 
+async function enviarPedidoRechazadoPorCorreo({ clienteEmail, clienteNombre, bossEmail, orderId, items }) {
+  const transporter = crearTransporterCorreo();
+  if (!transporter) return { enviado: false, motivo: "SMTP no configurado" };
+  const destinatarios = [clienteEmail, bossEmail].filter(Boolean);
+  if (!destinatarios.length) return { enviado: false, motivo: "No hay correos destino" };
+  const html = crearHtmlPedidoPendiente({ clienteNombre, orderId, items })
+    .replace("Pedido pendiente de autorización", "Pedido rechazado")
+    .replace("Revísalo en la aplicación para aprobarlo y crear la factura en QuickBooks.", "Este pedido fue rechazado y no se envió a QuickBooks.");
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: destinatarios.join(","),
+    subject: `Pedido rechazado #${orderId}`,
+    html,
+  });
+  return { enviado: true, destinatarios };
+}
+
 async function enviarFacturaPorCorreo({
   clienteEmail,
   clienteNombre,
@@ -613,7 +672,7 @@ async function enviarFacturaPorCorreo({
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: destinatarios.join(","),
-    subject: `Factura Distribuidora L&P #${docNumber}`,
+    subject: `Factura creada en QuickBooks - Distribuidora L&P #${docNumber}`,
     html,
     attachments,
   });
@@ -710,8 +769,23 @@ app.get("/clientes", async (req, res) => {
 
 app.get("/productos", async (req, res) => {
   try {
-    const query = encodeURIComponent("SELECT * FROM Item MAXRESULTS 1000");
-    const data = await qboGet(`/query?query=${query}&minorversion=75`);
+    const cache = leerCacheProductos();
+    if (cache?.data) {
+      res.setHeader("X-Catalog-Updated", new Date(Number(cache.updatedAt || 0)).toISOString());
+      res.json(cache.data);
+      if (Date.now() - Number(cache.updatedAt || 0) >= PRODUCTS_CACHE_TTL_MS) {
+        void actualizarCacheProductos();
+      }
+      return;
+    }
+
+    const data = await actualizarCacheProductos();
+    if (!data) {
+      return res.status(503).json({
+        error: "El catálogo todavía no está disponible",
+        detalle: "QuickBooks no respondió y aún no existe una copia local del catálogo",
+      });
+    }
     res.json(data);
   } catch (error) {
     console.log("ERROR PRODUCTOS:");
@@ -862,7 +936,10 @@ app.get("/cliente/:id", async (req, res) => {
 
 app.get("/orders", (req, res) => {
   try {
-    res.json(leerOrdenes());
+    // Solo los pedidos creados con el flujo actual pueden aprobarse.
+    // Los registros antiguos no tienen customerId/status y no deben aparecer
+    // como pendientes ni provocar el error "Falta customerId".
+    res.json(leerOrdenes().filter((order) => String(order?.status || "") === "pending"));
   } catch (error) {
     res.status(500).json({
       error: "Error leyendo órdenes",
@@ -928,7 +1005,20 @@ app.post("/orders/:id/status", requiereRol("empleado", "jefe"), (req, res) => {
     order.updatedAt = new Date().toISOString();
     if (req.body?.invoiceId) order.invoiceId = String(req.body.invoiceId);
     guardarOrdenes(orders);
-    res.json(order);
+    if (status === "rejected") {
+      void enviarPedidoRechazadoPorCorreo({
+        clienteEmail: order.customerEmail || order.customer?.email || "",
+        clienteNombre: order.customerName || order.customer?.name || "Cliente",
+        bossEmail: process.env.BOSS_EMAIL || process.env.JEFE_EMAIL || "",
+        orderId: order.id,
+        items: order.items || [],
+      }).then((email) => {
+        console.log("Aviso de pedido rechazado:", email);
+      }).catch((emailError) => {
+        console.error("Error enviando aviso de pedido rechazado:", emailError);
+      });
+    }
+    res.json({ ...order, email: status === "rejected" ? { pendiente: true } : null });
   } catch (error) {
     res.status(500).json({
       error: "Error actualizando pedido",
@@ -1266,3 +1356,8 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("SMTP:", process.env.SMTP_HOST ? "CONFIGURADO" : "NO CONFIGURADO");
   console.log("=================================");
 });
+
+const productosSyncTimer = setInterval(() => {
+  void actualizarCacheProductos();
+}, PRODUCTS_CACHE_TTL_MS);
+productosSyncTimer.unref?.();
