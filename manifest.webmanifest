@@ -1,0 +1,18 @@
+{
+  "name": "Distribuidora L&P",
+  "short_name": "Distribuidora L&P",
+  "description": "Catálogo y pedidos de Distribuidora L&P",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef4fb",
+  "theme_color": "#0666ff",
+  "icons": [
+    {
+      "src": "/images/logo-nuevo.jpg",
+      "sizes": "1600x1348",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
