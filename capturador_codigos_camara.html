@@ -69,7 +69,7 @@ async function abrirCamara(){
  if(activa)return;
  scanner=new Html5Qrcode("reader");
  try{
-  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:280,height:160}},
+  await scanner.start({facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}, {fps:10,qrbox:{width:360,height:180}},
  async t=>{
    const texto=String(t||"").trim();
    if(!texto)return;
@@ -82,6 +82,16 @@ async function abrirCamara(){
  },
    ()=>{});
   activa=true;
+  // Enfoque continuo y zoom moderado cuando el teléfono lo permite.
+  try{
+   const video=document.querySelector("#reader video");
+   const track=video?.srcObject?.getVideoTracks?.()[0];
+   const caps=track?.getCapabilities?.()||{};
+   const advanced=[];
+   if(Array.isArray(caps.focusMode)&&caps.focusMode.includes("continuous"))advanced.push({focusMode:"continuous"});
+   if(caps.zoom){const z=Math.min(caps.zoom.max,Math.max(caps.zoom.min||1,(caps.zoom.min||1)+0.5));advanced.push({zoom:z});}
+   if(track?.applyConstraints&&advanced.length)await track.applyConstraints({advanced});
+  }catch(e){console.warn("El teléfono no permite ajustar enfoque/zoom",e)}
  }catch(e){document.getElementById("estado").textContent="No se pudo abrir la cámara. Usa Chrome y permite acceso."}
 }
 async function cerrarCamara(){
