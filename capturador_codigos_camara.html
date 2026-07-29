@@ -49,7 +49,7 @@ const PRODUCTOS = [{"codigo": "ACEITE123/1LT", "nombre": "Aceite 123 Vegetal 12 
 const KEY="lnp_codigos_v3", KEYI="lnp_codigos_idx_v3";
 let capturas=JSON.parse(localStorage.getItem(KEY)||"{}");
 let indice=Number(localStorage.getItem(KEYI)||0);
-let scanner=null, controlesCamara=null, activa=false, ultimoTexto="", repeticiones=0;
+let scanner=null, controlesCamara=null, flujoCamara=null, activa=false, ultimoTexto="", repeticiones=0;
 if(!Number.isFinite(indice)||indice<0||indice>=PRODUCTOS.length)indice=0;
 const input=document.getElementById("barcode");
 function actual(){return PRODUCTOS[indice]}
@@ -71,7 +71,10 @@ async function abrirCamara(){
  scanner=new ZXingBrowser.BrowserMultiFormatReader();
  try{
   const video=document.getElementById("videoCodigo");
-  controlesCamara=await scanner.decodeFromConstraints({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false},video,
+  flujoCamara=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});
+  video.srcObject=flujoCamara;
+  await video.play();
+  controlesCamara=await scanner.decodeFromStream(flujoCamara,video,
  async (resultado,error)=>{
    if(!resultado)return;
    const texto=String(resultado.getText()||"").trim();
@@ -87,7 +90,6 @@ async function abrirCamara(){
   video.setAttribute("autoplay","");
   video.setAttribute("playsinline","");
   video.muted=true;
-  try{await video.play()}catch(e){video.onloadedmetadata=()=>video.play().catch(()=>{})}
   // Enfoque continuo y zoom moderado cuando el teléfono lo permite.
   try{
    const track=video?.srcObject?.getVideoTracks?.()[0];
@@ -102,6 +104,7 @@ async function abrirCamara(){
 async function cerrarCamara(){
  if(controlesCamara){try{controlesCamara.stop()}catch(e){} controlesCamara=null}
  if(scanner){try{scanner.reset()}catch(e){}}
+ if(flujoCamara){flujoCamara.getTracks().forEach(t=>t.stop());flujoCamara=null}
  activa=false;ultimoTexto="";repeticiones=0;document.getElementById("reader").style.display="none";
 }
 async function guardarYSeguir(){
