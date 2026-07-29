@@ -69,7 +69,7 @@ async function abrirCamara(){
  if(activa)return;
  scanner=new Html5Qrcode("reader");
  try{
-  await scanner.start({facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}, {fps:10,qrbox:{width:360,height:180}},
+  await scanner.start({facingMode:"environment"}, {fps:10,qrbox:{width:360,height:180}},
  async t=>{
    const texto=String(t||"").trim();
    if(!texto)return;
