@@ -71,10 +71,7 @@ async function abrirCamara(){
  scanner=new ZXingBrowser.BrowserMultiFormatReader();
  try{
   const video=document.getElementById("videoCodigo");
-  flujoCamara=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});
-  video.srcObject=flujoCamara;
-  await video.play();
-  controlesCamara=await scanner.decodeFromStream(flujoCamara,video,
+  controlesCamara=await scanner.decodeFromVideoDevice(undefined,video,
  async (resultado,error)=>{
    if(!resultado)return;
    const texto=String(resultado.getText()||"").trim();
