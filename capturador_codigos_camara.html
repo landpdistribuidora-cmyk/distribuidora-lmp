@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Capturador de códigos L&P</title>
-<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/index.min.js"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial;background:#eef4fb;color:#111827}
 header{background:#0666f5;color:#fff;padding:14px;text-align:center;position:sticky;top:0}
@@ -49,7 +49,7 @@ const PRODUCTOS = [{"codigo": "ACEITE123/1LT", "nombre": "Aceite 123 Vegetal 12 
 const KEY="lnp_codigos_v3", KEYI="lnp_codigos_idx_v3";
 let capturas=JSON.parse(localStorage.getItem(KEY)||"{}");
 let indice=Number(localStorage.getItem(KEYI)||0);
-let scanner=null, activa=false, ultimoTexto="", repeticiones=0;
+let scanner=null, controlesCamara=null, activa=false, ultimoTexto="", repeticiones=0;
 if(!Number.isFinite(indice)||indice<0||indice>=PRODUCTOS.length)indice=0;
 const input=document.getElementById("barcode");
 function actual(){return PRODUCTOS[indice]}
@@ -67,11 +67,14 @@ function render(){
 async function abrirCamara(){
  document.getElementById("reader").style.display="block";
  if(activa)return;
- scanner=new Html5Qrcode("reader");
+ document.getElementById("reader").innerHTML='<video id="videoCodigo" playsinline muted style="width:100%;max-height:55vh;border-radius:12px;background:#000"></video>';
+ scanner=new ZXingBrowser.BrowserMultiFormatReader();
  try{
-  await scanner.start({facingMode:"environment"}, {fps:10,qrbox:{width:360,height:180}},
- async t=>{
-   const texto=String(t||"").trim();
+  const video=document.getElementById("videoCodigo");
+  controlesCamara=await scanner.decodeFromConstraints({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false},video,
+ async (resultado,error)=>{
+   if(!resultado)return;
+   const texto=String(resultado.getText()||"").trim();
    if(!texto)return;
    if(texto===ultimoTexto)repeticiones++;else{ultimoTexto=texto;repeticiones=1;}
    if(repeticiones<2){document.getElementById("estado").textContent="Verificando el código… no muevas la cámara.";return;}
@@ -79,12 +82,10 @@ async function abrirCamara(){
    document.getElementById("estado").textContent="Código leído dos veces: "+texto+". Revisa el número y presiona Guardar y siguiente.";
    ultimoTexto="";repeticiones=0;
    await cerrarCamara();
- },
-   ()=>{});
+ });
   activa=true;
   // Enfoque continuo y zoom moderado cuando el teléfono lo permite.
   try{
-   const video=document.querySelector("#reader video");
    const track=video?.srcObject?.getVideoTracks?.()[0];
    const caps=track?.getCapabilities?.()||{};
    const advanced=[];
@@ -92,10 +93,11 @@ async function abrirCamara(){
    if(caps.zoom){const z=Math.min(caps.zoom.max,Math.max(caps.zoom.min||1,(caps.zoom.min||1)+0.5));advanced.push({zoom:z});}
    if(track?.applyConstraints&&advanced.length)await track.applyConstraints({advanced});
   }catch(e){console.warn("El teléfono no permite ajustar enfoque/zoom",e)}
- }catch(e){document.getElementById("estado").textContent="No se pudo abrir la cámara. Usa Chrome y permite acceso."}
+ }catch(e){activa=false;document.getElementById("reader").style.display="none";document.getElementById("estado").textContent="No se pudo abrir la cámara. Permite el acceso y vuelve a intentar."}
 }
 async function cerrarCamara(){
- if(scanner&&activa){try{await scanner.stop()}catch(e){} try{await scanner.clear()}catch(e){}}
+ if(controlesCamara){try{controlesCamara.stop()}catch(e){} controlesCamara=null}
+ if(scanner){try{scanner.reset()}catch(e){}}
  activa=false;ultimoTexto="";repeticiones=0;document.getElementById("reader").style.display="none";
 }
 async function guardarYSeguir(){
