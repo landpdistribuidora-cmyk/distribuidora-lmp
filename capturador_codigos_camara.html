@@ -67,7 +67,7 @@ function render(){
 async function abrirCamara(){
  document.getElementById("reader").style.display="block";
  if(activa)return;
- document.getElementById("reader").innerHTML='<video id="videoCodigo" playsinline muted style="width:100%;max-height:55vh;border-radius:12px;background:#000"></video>';
+ document.getElementById("reader").innerHTML='<video id="videoCodigo" autoplay playsinline muted webkit-playsinline style="width:100%;max-height:55vh;border-radius:12px;background:#000;object-fit:cover"></video>';
  scanner=new ZXingBrowser.BrowserMultiFormatReader();
  try{
   const video=document.getElementById("videoCodigo");
@@ -84,6 +84,10 @@ async function abrirCamara(){
    await cerrarCamara();
  });
   activa=true;
+  video.setAttribute("autoplay","");
+  video.setAttribute("playsinline","");
+  video.muted=true;
+  try{await video.play()}catch(e){video.onloadedmetadata=()=>video.play().catch(()=>{})}
   // Enfoque continuo y zoom moderado cuando el teléfono lo permite.
   try{
    const track=video?.srcObject?.getVideoTracks?.()[0];
