@@ -64,9 +64,19 @@ function render(){
  document.getElementById("estado").textContent=capturas[p.codigo]?"Ya tiene código guardado.":"Pendiente.";
  save();
 }
+function codigoNumericoValido(texto){
+ if(!/^\d+$/.test(texto))return true;
+ // UPC-A, EAN-8, EAN-13 e ITF-14 tienen dígito de control. Rechazamos
+ // lecturas borrosas con un dígito cambiado antes de mostrarlas como válidas.
+ if(![8,12,13,14].includes(texto.length))return false;
+ let suma=0;
+ for(let i=0;i<texto.length-1;i++){const desdeDerecha=texto.length-2-i;suma+=Number(texto[i])*(desdeDerecha%2===0?3:1)}
+ return (10-(suma%10))%10===Number(texto.at(-1));
+}
 async function procesarCodigoLeido(valor){
  const texto=String(valor||"").replace(/[\r\n\s]/g,"").trim();
  if(!texto||!activa||leyendoCodigo)return;
+ if(!codigoNumericoValido(texto)){document.getElementById("estado").textContent="Lectura dudosa. Acerca el código y alinea las barras.";ultimoTexto="";repeticiones=0;return}
  if(texto===ultimoTexto)repeticiones++;else{ultimoTexto=texto;repeticiones=1;}
  if(repeticiones<2){document.getElementById("estado").textContent="Verificando el código… no muevas la cámara.";return;}
  leyendoCodigo=true;input.value=texto;
@@ -81,7 +91,7 @@ async function abrirCamara(){
  reader.innerHTML='<video id="videoCodigo" autoplay playsinline muted webkit-playsinline></video><div class="camera-status">Apunta al código de barras. La imagen debe verse aquí.</div>';
  const video=document.getElementById("videoCodigo");
  try{
-  flujoCamara=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}});
+  flujoCamara=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{min:640,ideal:1920},height:{min:480,ideal:1080}}});
   video.muted=true;video.autoplay=true;video.playsInline=true;video.srcObject=flujoCamara;
   await new Promise((resolve,reject)=>{video.onloadedmetadata=resolve;setTimeout(()=>video.readyState>=2?resolve():reject(new Error("La cámara no entregó imagen")),5000)});
   await video.play();
@@ -89,7 +99,6 @@ async function abrirCamara(){
   try{
    const track=flujoCamara.getVideoTracks()[0],caps=track.getCapabilities?.()||{},advanced=[];
    if(Array.isArray(caps.focusMode)&&caps.focusMode.includes("continuous"))advanced.push({focusMode:"continuous"});
-   if(caps.zoom)advanced.push({zoom:Math.min(caps.zoom.max,Math.max(caps.zoom.min||1,(caps.zoom.min||1)+0.5))});
    if(advanced.length)await track.applyConstraints({advanced});
   }catch(e){console.warn("El teléfono no permite ajustar enfoque/zoom",e)}
   if("BarcodeDetector" in window){
@@ -97,7 +106,7 @@ async function abrirCamara(){
     const disponibles=await BarcodeDetector.getSupportedFormats();
     const formatos=["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","codabar"].filter(x=>disponibles.includes(x));
     const detector=new BarcodeDetector({formats:formatos.length?formatos:disponibles});
-    detectorTimer=setInterval(async()=>{if(!activa||leyendoCodigo||video.readyState<2)return;try{const encontrados=await detector.detect(video);if(encontrados[0]?.rawValue)await procesarCodigoLeido(encontrados[0].rawValue)}catch(e){}},220);
+    detectorTimer=setInterval(async()=>{if(!activa||leyendoCodigo||video.readyState<2)return;try{const encontrados=await detector.detect(video);if(encontrados[0]?.rawValue)await procesarCodigoLeido(encontrados[0].rawValue)}catch(e){}},120);
     return;
    }catch(e){console.warn("BarcodeDetector no disponible; se usará ZXing",e)}
   }
