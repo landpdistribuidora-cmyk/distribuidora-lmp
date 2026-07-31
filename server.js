@@ -492,6 +492,30 @@ function limpiarTexto(texto) {
     .trim();
 }
 
+// Los códigos del catálogo pueden llevar espacios, diagonales o prefijos de
+// QuickBooks. Se comparan también en formato compacto para que el lector no
+// dependa de que el texto coincida carácter por carácter.
+function claveProductoBarcode(texto) {
+  return limpiarTexto(sinPrefijoQuickBooks(texto)).replace(/[^a-z0-9]/g, "");
+}
+
+function normalizarBarcode(texto) {
+  // Conservamos ceros iniciales: forman parte del EAN/UPC.
+  return String(texto || "").replace(/[\r\n\s]/g, "").trim();
+}
+
+function productoCachePorClave(clave, items) {
+  const objetivo = claveProductoBarcode(clave);
+  if (!objetivo) return null;
+  return (items || []).find((item) => {
+    const valores = [item.Name, item.FullyQualifiedName, item.Sku, item.Description]
+      .filter(Boolean)
+      .map(claveProductoBarcode)
+      .filter(Boolean);
+    return valores.some((valor) => valor === objetivo || valor.endsWith(objetivo));
+  }) || null;
+}
+
 function sinPrefijoQuickBooks(valor) {
   const texto = String(valor || "").trim();
   const separador = texto.lastIndexOf(":");
@@ -1198,7 +1222,7 @@ app.post("/barcodes", requiereRol("empleado", "jefe"), (req, res) => {
 
     const data = leerBarcodes();
 
-    const barcode = String(nuevo.barcode || nuevo.code || nuevo.codigo).trim();
+    const barcode = normalizarBarcode(nuevo.barcode || nuevo.code || nuevo.codigo);
     const productCode = String(nuevo.productCode || nuevo.productCodigo || "").trim();
     let itemId = String(nuevo.itemId || nuevo.id || "").trim();
     const productName = nuevo.productName || nuevo.name || "";
@@ -1209,18 +1233,12 @@ app.post("/barcodes", requiereRol("empleado", "jefe"), (req, res) => {
     if (productCode || productName) {
       const cache = leerCacheProductos();
       const items = cache?.data?.QueryResponse?.Item || [];
-      const objetivo = limpiarTexto(productCode || productName);
-      const encontradoQbo = items.find((item) => {
-        const nombres = [item.Name, item.FullyQualifiedName, item.Sku, item.Description]
-          .filter(Boolean)
-          .map(limpiarTexto);
-        return nombres.some((nombre) => nombre === objetivo || nombre.endsWith(`:${objetivo}`) || nombre.includes(objetivo));
-      });
+      const encontradoQbo = productoCachePorClave(productCode || productName, items);
       if (encontradoQbo?.Id) itemId = String(encontradoQbo.Id);
     }
 
     const existente = data.find((x) => {
-      return String(x.barcode || x.code || x.codigo || "").trim() === barcode;
+      return normalizarBarcode(x.barcode || x.code || x.codigo) === barcode;
     });
 
     if (existente) {
@@ -1257,11 +1275,11 @@ app.post("/barcodes", requiereRol("empleado", "jefe"), (req, res) => {
 
 app.get("/barcode/:codigo", (req, res) => {
   try {
-    const codigo = String(req.params.codigo || "").trim();
+    const codigo = normalizarBarcode(req.params.codigo);
     const data = leerBarcodes();
 
     const encontrado = data.find((x) => {
-      return String(x.barcode || x.code || x.codigo || "").trim() === codigo;
+      return normalizarBarcode(x.barcode || x.code || x.codigo) === codigo;
     });
 
     if (!encontrado) {
@@ -1281,7 +1299,7 @@ app.get("/barcode/:codigo", (req, res) => {
 
 app.post("/buscar-por-barcode", async (req, res) => {
   try {
-    const codigo = String(req.body.codigo || req.body.barcode || "").trim();
+    const codigo = normalizarBarcode(req.body.codigo || req.body.barcode);
 
     if (!codigo) {
       return res.status(400).json({
@@ -1292,10 +1310,10 @@ app.post("/buscar-por-barcode", async (req, res) => {
     const data = leerBarcodes();
 
     const encontrado = data.find((x) => {
-      return String(x.barcode || x.code || x.codigo || "").trim() === codigo;
+      return normalizarBarcode(x.barcode || x.code || x.codigo) === codigo;
     });
 
-    if (!encontrado || !encontrado.itemId) {
+    if (!encontrado) {
       return res.status(404).json({
         error: "Código no registrado",
       });
@@ -1306,19 +1324,32 @@ app.post("/buscar-por-barcode", async (req, res) => {
       const query = encodeURIComponent(
         `SELECT * FROM Item WHERE Id = '${encontrado.itemId}'`
       );
-      const productoData = await qboGet(`/query?query=${query}&minorversion=75`);
-      producto = productoData.QueryResponse?.Item?.[0] || null;
+      try {
+        const productoData = await qboGet(`/query?query=${query}&minorversion=75`);
+        producto = productoData.QueryResponse?.Item?.[0] || null;
+      } catch (error) {
+        console.warn("No se pudo consultar el Item de QBO; usando caché:", error.message || error);
+      }
     }
 
     // Respaldo para códigos guardados antes de conocer el Id numérico de QBO.
     if (!producto) {
       const cache = leerCacheProductos();
       const items = cache?.data?.QueryResponse?.Item || [];
-      const objetivo = limpiarTexto(encontrado.productCode || encontrado.productName || encontrado.itemId);
-      producto = items.find((item) => [item.Name, item.FullyQualifiedName, item.Sku, item.Description]
-        .filter(Boolean)
-        .map(limpiarTexto)
-        .some((nombre) => nombre === objetivo || nombre.endsWith(`:${objetivo}`) || nombre.includes(objetivo))) || null;
+      producto = productoCachePorClave(
+        encontrado.productCode || encontrado.productName || encontrado.itemId,
+        items
+      );
+    }
+
+    if (!producto && (encontrado.productCode || encontrado.productName)) {
+      producto = {
+        Id: encontrado.itemId || encontrado.productCode || encontrado.productName,
+        Name: encontrado.productName || encontrado.productCode,
+        FullyQualifiedName: encontrado.productName || encontrado.productCode,
+        Sku: encontrado.productCode || "",
+        Description: encontrado.productName || "",
+      };
     }
 
     if (!producto) {
