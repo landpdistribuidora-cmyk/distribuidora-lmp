@@ -13,7 +13,7 @@ main{max-width:720px;margin:auto;padding:10px}.card{background:#fff;border-radiu
 input{width:100%;font-size:24px;padding:15px;border:3px solid #93c5fd;border-radius:14px;margin-top:12px;text-align:center}
 button{width:100%;padding:14px;border:0;border-radius:12px;margin-top:10px;font-size:17px;font-weight:bold;background:#0666f5;color:white}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.camera{background:#7c3aed}.green{background:#15803d}.secondary{background:#334155}.warn{background:#b45309}
-#reader{display:none;margin-top:12px;background:#111827;border-radius:12px;overflow:hidden;padding:4px}#reader video{display:block!important;width:100%!important;min-height:260px;max-height:55vh;border-radius:10px;background:#111;object-fit:cover}.camera-status{color:#fff;text-align:center;margin:7px 4px;font-size:13px}.status{font-weight:bold;margin-top:10px}.small{font-size:13px;color:#64748b}
+#reader{display:none;margin-top:12px;background:#111827;border-radius:12px;overflow:hidden;padding:4px}#reader video{display:block!important;width:100%!important;min-height:260px;max-height:55vh;border-radius:10px;background:#111;object-fit:contain}.camera-status{color:#fff;text-align:center;margin:7px 4px;font-size:13px}.camera-tools{display:flex;gap:7px;margin:5px 0}.camera-tools button{margin:0;padding:9px;font-size:14px;background:#475569}.camera-tools button:disabled{opacity:.45}.status{font-weight:bold;margin-top:10px}.small{font-size:13px;color:#64748b}
 </style>
 </head>
 <body>
@@ -49,7 +49,7 @@ const PRODUCTOS = [{"codigo": "ACEITE123/1LT", "nombre": "Aceite 123 Vegetal 12 
 const KEY="lnp_codigos_v3", KEYI="lnp_codigos_idx_v3";
 let capturas=JSON.parse(localStorage.getItem(KEY)||"{}");
 let indice=Number(localStorage.getItem(KEYI)||0);
-let scanner=null, controlesCamara=null, flujoCamara=null, detectorTimer=null, leyendoCodigo=false, activa=false, ultimoTexto="", repeticiones=0;
+let scanner=null, controlesCamara=null, flujoCamara=null, pistaCamara=null, detectorTimer=null, leyendoCodigo=false, activa=false, ultimoTexto="", repeticiones=0;
 if(!Number.isFinite(indice)||indice<0||indice>=PRODUCTOS.length)indice=0;
 const input=document.getElementById("barcode");
 function actual(){return PRODUCTOS[indice]}
@@ -73,12 +73,19 @@ function codigoNumericoValido(texto){
  for(let i=0;i<texto.length-1;i++){const desdeDerecha=texto.length-2-i;suma+=Number(texto[i])*(desdeDerecha%2===0?3:1)}
  return (10-(suma%10))%10===Number(texto.at(-1));
 }
+function normalizarLectura(valor){
+ let texto=String(valor||"").replace(/[\r\n\s]/g,"").trim();
+ // Algunos lectores pierden el cero inicial de un UPC-A. Recuperarlo aquí
+ // evita guardar un código incompleto, pero solo si el dígito de control valida.
+ if(/^\d{11}$/.test(texto)&&codigoNumericoValido("0"+texto))texto="0"+texto;
+ return texto;
+}
 async function procesarCodigoLeido(valor){
- const texto=String(valor||"").replace(/[\r\n\s]/g,"").trim();
+ const texto=normalizarLectura(valor);
  if(!texto||!activa||leyendoCodigo)return;
  if(!codigoNumericoValido(texto)){document.getElementById("estado").textContent="Lectura dudosa. Acerca el código y alinea las barras.";ultimoTexto="";repeticiones=0;return}
  if(texto===ultimoTexto)repeticiones++;else{ultimoTexto=texto;repeticiones=1;}
- if(repeticiones<2){document.getElementById("estado").textContent="Verificando el código… no muevas la cámara.";return;}
+ if(repeticiones<2){document.getElementById("estado").textContent="Código detectado. Confirma una segunda lectura…";return;}
  leyendoCodigo=true;input.value=texto;
  document.getElementById("estado").textContent="Código leído: "+texto+". Revisa el número y presiona Guardar y siguiente.";
  await cerrarCamara();
@@ -88,18 +95,23 @@ async function abrirCamara(){
  if(activa)return;
  if(!navigator.mediaDevices?.getUserMedia){document.getElementById("estado").textContent="Este navegador no permite usar la cámara.";return}
  reader.style.display="block";
- reader.innerHTML='<video id="videoCodigo" autoplay playsinline muted webkit-playsinline></video><div class="camera-status">Apunta al código de barras. La imagen debe verse aquí.</div>';
+ reader.innerHTML='<video id="videoCodigo" autoplay playsinline muted webkit-playsinline></video><div class="camera-tools"><button id="enfocarCodigo" type="button">Enfocar</button><button id="linternaCodigo" type="button" disabled>Linterna</button><button id="cerrarCodigo" type="button">Cerrar cámara</button></div><div class="camera-status">Mantén el código completo dentro de la imagen, a unos 10–20 cm.</div>';
  const video=document.getElementById("videoCodigo");
  try{
-  flujoCamara=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{min:640,ideal:1920},height:{min:480,ideal:1080}}});
+  flujoCamara=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{min:640,ideal:1280},height:{min:480,ideal:720},frameRate:{ideal:30,max:30}}});
   video.muted=true;video.autoplay=true;video.playsInline=true;video.srcObject=flujoCamara;
   await new Promise((resolve,reject)=>{video.onloadedmetadata=resolve;setTimeout(()=>video.readyState>=2?resolve():reject(new Error("La cámara no entregó imagen")),5000)});
   await video.play();
   activa=true;leyendoCodigo=false;ultimoTexto="";repeticiones=0;
+  pistaCamara=flujoCamara.getVideoTracks()[0];
+  document.getElementById("cerrarCodigo").onclick=()=>cerrarCamara();
+  document.getElementById("enfocarCodigo").onclick=()=>enfocarCamara(true);
+  video.onclick=()=>enfocarCamara(true);
   try{
-   const track=flujoCamara.getVideoTracks()[0],caps=track.getCapabilities?.()||{},advanced=[];
-   if(Array.isArray(caps.focusMode)&&caps.focusMode.includes("continuous"))advanced.push({focusMode:"continuous"});
-   if(advanced.length)await track.applyConstraints({advanced});
+   const caps=pistaCamara.getCapabilities?.()||{};
+   const linterna=document.getElementById("linternaCodigo");
+   if(caps.torch){linterna.disabled=false;linterna.onclick=async()=>{try{const encendida=linterna.dataset.on==="1";await pistaCamara.applyConstraints({advanced:[{torch:!encendida}]});linterna.dataset.on=encendida?"0":"1";linterna.textContent=encendida?"Linterna":"Apagar linterna";}catch(e){}}}
+   await enfocarCamara(false);
   }catch(e){console.warn("El teléfono no permite ajustar enfoque/zoom",e)}
   if("BarcodeDetector" in window){
    try{
@@ -114,12 +126,21 @@ async function abrirCamara(){
   controlesCamara=scanner.decodeFromVideoElement(video,async resultado=>{if(resultado)await procesarCodigoLeido(resultado.getText())});
  }catch(e){console.error("Error de cámara:",e);await cerrarCamara();document.getElementById("estado").textContent="La cámara no mostró imagen. Cierra otras apps que la estén usando y vuelve a pulsar Abrir cámara."}
 }
+async function enfocarCamara(mostrarEstado){
+ if(!pistaCamara?.applyConstraints)return;
+ const caps=pistaCamara.getCapabilities?.()||{};
+ try{
+  if(Array.isArray(caps.focusMode)&&caps.focusMode.includes("continuous"))await pistaCamara.applyConstraints({advanced:[{focusMode:"continuous"}]});
+  else if(Array.isArray(caps.focusMode)&&caps.focusMode.includes("single-shot"))await pistaCamara.applyConstraints({advanced:[{focusMode:"single-shot"}]});
+  if(mostrarEstado)document.getElementById("estado").textContent="Enfoque ajustado. Mantén el código dentro de la imagen.";
+ }catch(e){if(mostrarEstado)document.getElementById("estado").textContent="No se pudo cambiar el enfoque; aleja un poco el teléfono."}
+}
 async function cerrarCamara(){
  if(detectorTimer){clearInterval(detectorTimer);detectorTimer=null}
  if(controlesCamara){try{controlesCamara.stop()}catch(e){}controlesCamara=null}
  if(scanner){try{scanner.reset()}catch(e){}scanner=null}
  if(flujoCamara){flujoCamara.getTracks().forEach(t=>t.stop());flujoCamara=null}
- activa=false;leyendoCodigo=false;ultimoTexto="";repeticiones=0;document.getElementById("reader").style.display="none";
+ pistaCamara=null;activa=false;leyendoCodigo=false;ultimoTexto="";repeticiones=0;document.getElementById("reader").style.display="none";
 }
 async function guardarYSeguir(){
  const v=input.value.trim(); if(!v){document.getElementById("estado").textContent="Escanea o escribe un código.";return}
