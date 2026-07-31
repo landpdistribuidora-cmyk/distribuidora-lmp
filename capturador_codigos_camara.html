@@ -13,7 +13,7 @@ main{max-width:720px;margin:auto;padding:10px}.card{background:#fff;border-radiu
 input{width:100%;font-size:24px;padding:15px;border:3px solid #93c5fd;border-radius:14px;margin-top:12px;text-align:center}
 button{width:100%;padding:14px;border:0;border-radius:12px;margin-top:10px;font-size:17px;font-weight:bold;background:#0666f5;color:white}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.camera{background:#7c3aed}.green{background:#15803d}.secondary{background:#334155}.warn{background:#b45309}
-#reader{display:none;margin-top:12px}.status{font-weight:bold;margin-top:10px}.small{font-size:13px;color:#64748b}
+#reader{display:none;margin-top:12px;background:#111827;border-radius:12px;overflow:hidden;padding:4px}#reader video{display:block!important;width:100%!important;min-height:260px;max-height:55vh;border-radius:10px;background:#111;object-fit:cover}.camera-status{color:#fff;text-align:center;margin:7px 4px;font-size:13px}.status{font-weight:bold;margin-top:10px}.small{font-size:13px;color:#64748b}
 </style>
 </head>
 <body>
@@ -49,7 +49,7 @@ const PRODUCTOS = [{"codigo": "ACEITE123/1LT", "nombre": "Aceite 123 Vegetal 12 
 const KEY="lnp_codigos_v3", KEYI="lnp_codigos_idx_v3";
 let capturas=JSON.parse(localStorage.getItem(KEY)||"{}");
 let indice=Number(localStorage.getItem(KEYI)||0);
-let scanner=null, controlesCamara=null, flujoCamara=null, activa=false, ultimoTexto="", repeticiones=0;
+let scanner=null, controlesCamara=null, flujoCamara=null, detectorTimer=null, leyendoCodigo=false, activa=false, ultimoTexto="", repeticiones=0;
 if(!Number.isFinite(indice)||indice<0||indice>=PRODUCTOS.length)indice=0;
 const input=document.getElementById("barcode");
 function actual(){return PRODUCTOS[indice]}
@@ -64,48 +64,53 @@ function render(){
  document.getElementById("estado").textContent=capturas[p.codigo]?"Ya tiene código guardado.":"Pendiente.";
  save();
 }
+async function procesarCodigoLeido(valor){
+ const texto=String(valor||"").replace(/[\r\n\s]/g,"").trim();
+ if(!texto||!activa||leyendoCodigo)return;
+ if(texto===ultimoTexto)repeticiones++;else{ultimoTexto=texto;repeticiones=1;}
+ if(repeticiones<2){document.getElementById("estado").textContent="Verificando el código… no muevas la cámara.";return;}
+ leyendoCodigo=true;input.value=texto;
+ document.getElementById("estado").textContent="Código leído: "+texto+". Revisa el número y presiona Guardar y siguiente.";
+ await cerrarCamara();
+}
 async function abrirCamara(){
- document.getElementById("reader").style.display="block";
+ const reader=document.getElementById("reader");
  if(activa)return;
- document.getElementById("reader").innerHTML='<video id="videoCodigo" autoplay playsinline muted webkit-playsinline style="width:100%;max-height:55vh;border-radius:12px;background:#000;object-fit:cover"></video>';
- scanner=new ZXingBrowser.BrowserMultiFormatReader();
+ if(!navigator.mediaDevices?.getUserMedia){document.getElementById("estado").textContent="Este navegador no permite usar la cámara.";return}
+ reader.style.display="block";
+ reader.innerHTML='<video id="videoCodigo" autoplay playsinline muted webkit-playsinline></video><div class="camera-status">Apunta al código de barras. La imagen debe verse aquí.</div>';
+ const video=document.getElementById("videoCodigo");
  try{
-  const video=document.getElementById("videoCodigo");
-  flujoCamara=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false});
-  video.srcObject=flujoCamara;
+  flujoCamara=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}});
+  video.muted=true;video.autoplay=true;video.playsInline=true;video.srcObject=flujoCamara;
+  await new Promise((resolve,reject)=>{video.onloadedmetadata=resolve;setTimeout(()=>video.readyState>=2?resolve():reject(new Error("La cámara no entregó imagen")),5000)});
   await video.play();
-  controlesCamara=scanner.decodeFromVideoElement(video,
- async (resultado,error)=>{
-   if(!resultado)return;
-   const texto=String(resultado.getText()||"").trim();
-   if(!texto)return;
-   if(texto===ultimoTexto)repeticiones++;else{ultimoTexto=texto;repeticiones=1;}
-   if(repeticiones<2){document.getElementById("estado").textContent="Verificando el código… no muevas la cámara.";return;}
-   input.value=texto;
-   document.getElementById("estado").textContent="Código leído dos veces: "+texto+". Revisa el número y presiona Guardar y siguiente.";
-   ultimoTexto="";repeticiones=0;
-   await cerrarCamara();
- });
-  activa=true;
-  video.setAttribute("autoplay","");
-  video.setAttribute("playsinline","");
-  video.muted=true;
-  // Enfoque continuo y zoom moderado cuando el teléfono lo permite.
+  activa=true;leyendoCodigo=false;ultimoTexto="";repeticiones=0;
   try{
-   const track=video?.srcObject?.getVideoTracks?.()[0];
-   const caps=track?.getCapabilities?.()||{};
-   const advanced=[];
+   const track=flujoCamara.getVideoTracks()[0],caps=track.getCapabilities?.()||{},advanced=[];
    if(Array.isArray(caps.focusMode)&&caps.focusMode.includes("continuous"))advanced.push({focusMode:"continuous"});
-   if(caps.zoom){const z=Math.min(caps.zoom.max,Math.max(caps.zoom.min||1,(caps.zoom.min||1)+0.5));advanced.push({zoom:z});}
-   if(track?.applyConstraints&&advanced.length)await track.applyConstraints({advanced});
+   if(caps.zoom)advanced.push({zoom:Math.min(caps.zoom.max,Math.max(caps.zoom.min||1,(caps.zoom.min||1)+0.5))});
+   if(advanced.length)await track.applyConstraints({advanced});
   }catch(e){console.warn("El teléfono no permite ajustar enfoque/zoom",e)}
- }catch(e){activa=false;document.getElementById("reader").style.display="none";document.getElementById("estado").textContent="No se pudo abrir la cámara. Permite el acceso y vuelve a intentar."}
+  if("BarcodeDetector" in window){
+   try{
+    const disponibles=await BarcodeDetector.getSupportedFormats();
+    const formatos=["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","codabar"].filter(x=>disponibles.includes(x));
+    const detector=new BarcodeDetector({formats:formatos.length?formatos:disponibles});
+    detectorTimer=setInterval(async()=>{if(!activa||leyendoCodigo||video.readyState<2)return;try{const encontrados=await detector.detect(video);if(encontrados[0]?.rawValue)await procesarCodigoLeido(encontrados[0].rawValue)}catch(e){}},220);
+    return;
+   }catch(e){console.warn("BarcodeDetector no disponible; se usará ZXing",e)}
+  }
+  scanner=new ZXingBrowser.BrowserMultiFormatReader();
+  controlesCamara=scanner.decodeFromVideoElement(video,async resultado=>{if(resultado)await procesarCodigoLeido(resultado.getText())});
+ }catch(e){console.error("Error de cámara:",e);await cerrarCamara();document.getElementById("estado").textContent="La cámara no mostró imagen. Cierra otras apps que la estén usando y vuelve a pulsar Abrir cámara."}
 }
 async function cerrarCamara(){
- if(controlesCamara){try{controlesCamara.stop()}catch(e){} controlesCamara=null}
- if(scanner){try{scanner.reset()}catch(e){}}
+ if(detectorTimer){clearInterval(detectorTimer);detectorTimer=null}
+ if(controlesCamara){try{controlesCamara.stop()}catch(e){}controlesCamara=null}
+ if(scanner){try{scanner.reset()}catch(e){}scanner=null}
  if(flujoCamara){flujoCamara.getTracks().forEach(t=>t.stop());flujoCamara=null}
- activa=false;ultimoTexto="";repeticiones=0;document.getElementById("reader").style.display="none";
+ activa=false;leyendoCodigo=false;ultimoTexto="";repeticiones=0;document.getElementById("reader").style.display="none";
 }
 async function guardarYSeguir(){
  const v=input.value.trim(); if(!v){document.getElementById("estado").textContent="Escanea o escribe un código.";return}
