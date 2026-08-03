@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 900 700" role="img" aria-labelledby="title desc">
+  <title id="title">Distribuidora L&amp;P LLC</title>
+  <desc id="desc">Logo de Distribuidora L&amp;P con dirección y teléfono</desc>
+  <rect x="4" y="4" width="892" height="692" rx="30" fill="#ffffff" stroke="#0056d6" stroke-width="8"/>
+  <image x="68" y="12" width="764" height="584" preserveAspectRatio="xMidYMid meet" href="logo-nuevo.jpg" xlink:href="logo-nuevo.jpg"/>
+  <rect x="22" y="604" width="856" height="72" rx="18" fill="#0056d6"/>
+  <text x="450" y="633" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700">5411 W Orange Dr Ste 3 · Glendale, AZ 85301</text>
+  <text x="450" y="662" text-anchor="middle" fill="#dbeafe" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700">+1 (602) 545-6744</text>
+</svg>
