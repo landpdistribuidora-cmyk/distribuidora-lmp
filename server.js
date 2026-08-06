@@ -19,6 +19,7 @@ const IMAGE_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "imagenes-productos.json")
 const CATEGORY_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "categorias-productos.json");
 const PRODUCTS_CACHE_FILE = path.join(PERSISTENT_DATA_DIR, "productos-qbo-cache.json");
 const PRODUCTS_CACHE_TTL_MS = 60 * 1000;
+const INVENTORY_FILE = path.join(PERSISTENT_DATA_DIR, "inventario.json");
 
 fs.mkdirSync(PERSISTENT_IMAGES_DIR, { recursive: true });
 
@@ -48,6 +49,35 @@ function leerMapaCategorias() {
 
 function guardarMapaCategorias(mapa) {
   fs.writeFileSync(CATEGORY_MAP_FILE, JSON.stringify(mapa, null, 2), "utf8");
+}
+
+function leerInventario() {
+  try {
+    if (!fs.existsSync(INVENTORY_FILE)) return {};
+    const data = JSON.parse(fs.readFileSync(INVENTORY_FILE, "utf8"));
+    return data && typeof data === "object" ? data : {};
+  } catch (error) {
+    console.error("Error leyendo inventario:", error);
+    return {};
+  }
+}
+
+function guardarInventario(inventario) {
+  fs.writeFileSync(INVENTORY_FILE, JSON.stringify(inventario, null, 2), "utf8");
+}
+
+function descontarInventario(items) {
+  const inventario = leerInventario();
+  for (const item of Array.isArray(items) ? items : []) {
+    const itemId = String(item.itemId || item.id || "").trim();
+    const qty = Number(item.qty ?? item.quantity ?? item.cantidad ?? 0);
+    if (!itemId || !Number.isFinite(qty) || qty <= 0) continue;
+    if (!inventario[itemId]) continue;
+    inventario[itemId].cantidad = Math.max(0, Number(inventario[itemId].cantidad || 0) - qty);
+    inventario[itemId].updatedAt = new Date().toISOString();
+  }
+  guardarInventario(inventario);
+  return inventario;
 }
 
 const storage = multer.diskStorage({
@@ -194,6 +224,7 @@ const RUTAS_PROTEGIDAS = [
   "/api/imagenes-productos",
   "/api/imagenes-disponibles",
   "/api/categorias-productos",
+  "/api/inventario",
   "/api/productos",
   "/clientes",
   "/productos",
@@ -215,6 +246,29 @@ app.use((req, res, next) => {
     (ruta) => req.path === ruta || req.path.startsWith(`${ruta}/`)
   );
   return protegida ? requiereSesion(req, res, next) : next();
+});
+
+app.get("/api/inventario", requiereRol("jefe"), (req, res) => {
+  res.json({ inventario: leerInventario() });
+});
+
+app.post("/api/inventario", requiereRol("jefe"), (req, res) => {
+  try {
+    const lista = Array.isArray(req.body?.productos) ? req.body.productos : [];
+    const inventario = leerInventario();
+    for (const producto of lista) {
+      const itemId = String(producto?.itemId || producto?.id || "").trim();
+      const cantidad = Number(producto?.cantidad);
+      if (!itemId || !Number.isFinite(cantidad) || cantidad < 0) {
+        return res.status(400).json({ error: "Producto o cantidad no válida" });
+      }
+      inventario[itemId] = { itemId, cantidad: Math.floor(cantidad), updatedAt: new Date().toISOString() };
+    }
+    guardarInventario(inventario);
+    res.json({ ok: true, inventario });
+  } catch (error) {
+    res.status(500).json({ error: "No se pudo guardar el inventario", detalle: error.message });
+  }
 });
 
 app.get("/api/imagenes-productos", (req, res) => {
@@ -1113,6 +1167,7 @@ app.post("/crear-factura", requiereRol("empleado", "jefe"), async (req, res) => 
     console.log(JSON.stringify(invoice, null, 2));
 
     const data = await qboPost("/invoice?minorversion=75", invoice);
+    const inventarioActualizado = descontarInventario(items);
     let email = null;
 
     if (sendEmail) {
@@ -1138,6 +1193,7 @@ app.post("/crear-factura", requiereRol("empleado", "jefe"), async (req, res) => 
       success: true,
       invoice: data.Invoice,
       quickbooks: data,
+      inventario: inventarioActualizado,
       email,
     });
   } catch (error) {
@@ -1429,3 +1485,4 @@ const productosSyncTimer = setInterval(() => {
   void actualizarCacheProductos();
 }, PRODUCTS_CACHE_TTL_MS);
 productosSyncTimer.unref?.();
+
