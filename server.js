@@ -91,6 +91,7 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 const PORT = process.env.PORT || 3000;
 // El token debe vivir en el volumen de Railway para sobrevivir despliegues y reinicios.
 const TOKEN_FILE = path.join(PERSISTENT_DATA_DIR, "qbo-token.json");
@@ -238,6 +239,7 @@ const RUTAS_PROTEGIDAS = [
   "/barcode",
   "/buscar-por-barcode",
   "/voice-command",
+  "/voice-transcribe",
   "/catalogo-local",
 ];
 
@@ -248,7 +250,7 @@ app.use((req, res, next) => {
   return protegida ? requiereSesion(req, res, next) : next();
 });
 
-app.get("/api/inventario", requiereRol("jefe"), (req, res) => {
+app.get("/api/inventario", requiereRol("jefe", "empleado"), (req, res) => {
   res.json({ inventario: leerInventario() });
 });
 
@@ -1428,7 +1430,22 @@ app.post("/buscar-por-barcode", async (req, res) => {
       detalle: error.response?.data || error.message || String(error),
     });
   }
-});app.post("/voice-command", async (req, res) => {
+});app.post("/voice-transcribe", requiereRol("jefe", "empleado"), uploadAudio.single("audio"), async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "Falta configurar OPENAI_API_KEY en Railway" });
+    if (!req.file) return res.status(400).json({ error: "No se recibió audio" });
+    const form = new FormData();
+    form.append("file", new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" }), req.file.originalname || "orden.webm");
+    form.append("model", "gpt-transcribe"); form.append("language", "es");
+    form.append("prompt", "Pedido de productos de Distribuidora L&P. Puede incluir marcas como Sabritas, Cheetos, Doritos, Barcel, Tostitos, Galletas, Bebidas, Abarrotes y Dulces, además de cantidades.");
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", { method:"POST", headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` }, body:form });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok) return res.status(response.status).json({ error:"OpenAI no pudo transcribir el audio", detalle:data });
+    res.json({ ok:true, texto:String(data.text||"").trim() });
+  } catch(error) { console.error("ERROR TRANSCRIBIENDO VOZ:",error.message||error); res.status(500).json({ error:"No se pudo procesar la voz", detalle:error.message||String(error) }); }
+});
+
+app.post("/voice-command", async (req, res) => {
   try {
     const textoOriginal = String(req.body.texto || req.body.text || "").trim();
     const texto = limpiarTexto(textoOriginal);
@@ -1485,4 +1502,5 @@ const productosSyncTimer = setInterval(() => {
   void actualizarCacheProductos();
 }, PRODUCTS_CACHE_TTL_MS);
 productosSyncTimer.unref?.();
+
 
