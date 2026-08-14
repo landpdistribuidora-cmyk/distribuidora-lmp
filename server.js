@@ -17,6 +17,7 @@ const PERSISTENT_DATA_DIR =
 const PERSISTENT_IMAGES_DIR = path.join(PERSISTENT_DATA_DIR, "productos");
 const IMAGE_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "imagenes-productos.json");
 const CATEGORY_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "categorias-productos.json");
+const SUBFILTER_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "subfiltros-productos.json");
 const PRODUCTS_CACHE_FILE = path.join(PERSISTENT_DATA_DIR, "productos-qbo-cache.json");
 const PRODUCTS_CACHE_TTL_MS = 60 * 1000;
 const INVENTORY_FILE = path.join(PERSISTENT_DATA_DIR, "inventario.json");
@@ -49,6 +50,20 @@ function leerMapaCategorias() {
 
 function guardarMapaCategorias(mapa) {
   fs.writeFileSync(CATEGORY_MAP_FILE, JSON.stringify(mapa, null, 2), "utf8");
+}
+
+function leerMapaSubfiltros() {
+  try {
+    if (!fs.existsSync(SUBFILTER_MAP_FILE)) return {};
+    return JSON.parse(fs.readFileSync(SUBFILTER_MAP_FILE, "utf8"));
+  } catch (error) {
+    console.error("Error leyendo mapa de subfiltros:", error);
+    return {};
+  }
+}
+
+function guardarMapaSubfiltros(mapa) {
+  fs.writeFileSync(SUBFILTER_MAP_FILE, JSON.stringify(mapa, null, 2), "utf8");
 }
 
 function leerInventario() {
@@ -225,6 +240,7 @@ const RUTAS_PROTEGIDAS = [
   "/api/imagenes-productos",
   "/api/imagenes-disponibles",
   "/api/categorias-productos",
+  "/api/subfiltros-productos",
   "/api/inventario",
   "/api/productos",
   "/clientes",
@@ -279,7 +295,10 @@ app.get("/api/imagenes-productos", (req, res) => {
 app.get("/api/categorias-productos", (req, res) => {
   res.json(leerMapaCategorias());
 });
-app.post("/api/productos/:id/categoria", requiereRol("jefe"), (req, res) => {
+app.get("/api/subfiltros-productos", (req, res) => {
+  res.json(leerMapaSubfiltros());
+});
+app.post("/api/productos/:id/categoria", requiereRol("jefe", "empleado"), (req, res) => {
   const id = String(req.params.id || "").trim();
   const categoria = String(req.body?.categoria || "").trim();
 
@@ -292,6 +311,19 @@ app.post("/api/productos/:id/categoria", requiereRol("jefe"), (req, res) => {
   mapa[id] = categoria;
   guardarMapaCategorias(mapa);
   res.json({ ok: true, id, categoria });
+});
+app.post("/api/productos/:id/subfiltro", requiereRol("jefe", "empleado"), (req, res) => {
+  const id = String(req.params.id || "").trim();
+  const subfiltro = String(req.body?.subfiltro || "").trim();
+  if (!id) return res.status(400).json({ error: "Falta el ID del producto" });
+  if (!["", "Barcel", "Chicas", "Salsas"].includes(subfiltro)) {
+    return res.status(400).json({ error: "Subfiltro no válido" });
+  }
+  const mapa = leerMapaSubfiltros();
+  if (subfiltro) mapa[id] = subfiltro;
+  else delete mapa[id];
+  guardarMapaSubfiltros(mapa);
+  res.json({ ok: true, id, subfiltro });
 });
 app.get("/api/imagenes-disponibles", (req, res) => {
   try {
@@ -1502,5 +1534,3 @@ const productosSyncTimer = setInterval(() => {
   void actualizarCacheProductos();
 }, PRODUCTS_CACHE_TTL_MS);
 productosSyncTimer.unref?.();
-
-
