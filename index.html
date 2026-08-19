@@ -177,7 +177,7 @@ async function activarVoz(){
       form.append('audio',audio,'orden.webm');
       try{mostrarMensaje('Entendiendo la orden...');
         const r=await fetch('/voice-transcribe',{method:'POST',body:form}),d=await r.json().catch(()=>({}));
-        if(!r.ok)throw new Error(d.error||'No se pudo entender el audio');
+        if(!r.ok){const detalle=d.detalle?.error?.message||d.detalle?.message||d.detalle?.error||'';throw new Error((d.error||'No se pudo entender el audio')+(detalle?' — '+detalle:''))}
         if(!d.texto)throw new Error('No se detectaron palabras');
         procesarVoz(d.texto,true);
       }catch(e){alert(e.message)}

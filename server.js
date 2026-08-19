@@ -21,6 +21,8 @@ const SUBFILTER_MAP_FILE = path.join(PERSISTENT_DATA_DIR, "subfiltros-productos.
 const PRODUCTS_CACHE_FILE = path.join(PERSISTENT_DATA_DIR, "productos-qbo-cache.json");
 const PRODUCTS_CACHE_TTL_MS = 60 * 1000;
 const INVENTORY_FILE = path.join(PERSISTENT_DATA_DIR, "inventario.json");
+const INVOICE_SYNC_FILE = path.join(PERSISTENT_DATA_DIR, "facturas-inventario-sync.json");
+const QBO_WEBHOOK_VERIFIER_TOKEN = process.env.QBO_WEBHOOK_VERIFIER_TOKEN || "";
 
 fs.mkdirSync(PERSISTENT_IMAGES_DIR, { recursive: true });
 
@@ -95,6 +97,108 @@ function descontarInventario(items) {
   return inventario;
 }
 
+function leerSincronizacionFacturas() {
+  try {
+    if (!fs.existsSync(INVOICE_SYNC_FILE)) return {};
+    const data = JSON.parse(fs.readFileSync(INVOICE_SYNC_FILE, "utf8"));
+    return data && typeof data === "object" ? data : {};
+  } catch (error) {
+    console.error("Error leyendo sincronización de facturas:", error);
+    return {};
+  }
+}
+
+function guardarSincronizacionFacturas(data) {
+  fs.writeFileSync(INVOICE_SYNC_FILE, JSON.stringify(data, null, 2), "utf8");
+}
+
+function extraerLineasInventario(origen) {
+  const lineas = Array.isArray(origen) ? origen : origen?.Line || [];
+  const mapa = {};
+  for (const linea of lineas) {
+    const detalle = linea?.SalesItemLineDetail || {};
+    const itemId = String(
+      detalle?.ItemRef?.value || linea?.itemId || linea?.id || ""
+    ).trim();
+    const cantidad = Number(
+      detalle?.Qty ?? linea?.qty ?? linea?.quantity ?? linea?.cantidad ?? 0
+    );
+    if (!itemId || !Number.isFinite(cantidad) || cantidad <= 0) continue;
+    mapa[itemId] = Number((Number(mapa[itemId] || 0) + cantidad).toFixed(4));
+  }
+  return mapa;
+}
+
+function aplicarDiferenciaInventario(lineasNuevas, lineasAnteriores) {
+  const inventario = leerInventario();
+  const ids = new Set([
+    ...Object.keys(lineasNuevas || {}),
+    ...Object.keys(lineasAnteriores || {}),
+  ]);
+  for (const itemId of ids) {
+    const diferencia =
+      Number(lineasNuevas?.[itemId] || 0) -
+      Number(lineasAnteriores?.[itemId] || 0);
+    if (!diferencia || !inventario[itemId]) continue;
+    inventario[itemId].cantidad = Math.max(
+      0,
+      Number(inventario[itemId].cantidad || 0) - diferencia
+    );
+    inventario[itemId].updatedAt = new Date().toISOString();
+  }
+  guardarInventario(inventario);
+  return inventario;
+}
+
+function sincronizarFacturaInventario(invoiceId, origen, opciones = {}) {
+  const id = String(invoiceId || "").trim();
+  if (!id) return leerInventario();
+  const lineasNuevas = extraerLineasInventario(origen);
+  const sincronizadas = leerSincronizacionFacturas();
+  const anterior = sincronizadas[id];
+
+  // Si encontramos una factura antigua que solo fue editada después de activar
+  // la sincronización, guardamos la base sin descontarla otra vez.
+  if (!anterior && opciones.source === "webhook" && opciones.operation === "Update") {
+    sincronizadas[id] = {
+      lines: lineasNuevas,
+      updatedAt: new Date().toISOString(),
+      source: "webhook-baseline",
+    };
+    guardarSincronizacionFacturas(sincronizadas);
+    return leerInventario();
+  }
+
+  const inventario = aplicarDiferenciaInventario(
+    lineasNuevas,
+    anterior?.lines || {}
+  );
+  sincronizadas[id] = {
+    lines: lineasNuevas,
+    updatedAt: new Date().toISOString(),
+    source: opciones.source || "app",
+  };
+  guardarSincronizacionFacturas(sincronizadas);
+  return inventario;
+}
+
+// Evita que dos notificaciones iguales de QuickBooks descuenten dos veces
+// mientras llegan al mismo tiempo.
+const invoiceSyncLocks = new Map();
+async function sincronizarFacturaInventarioSeguro(invoiceId, origen, opciones = {}) {
+  const id = String(invoiceId || "").trim();
+  const anterior = invoiceSyncLocks.get(id) || Promise.resolve();
+  const tarea = anterior
+    .catch(() => {})
+    .then(() => sincronizarFacturaInventario(id, origen, opciones));
+  invoiceSyncLocks.set(id, tarea);
+  try {
+    return await tarea;
+  } finally {
+    if (invoiceSyncLocks.get(id) === tarea) invoiceSyncLocks.delete(id);
+  }
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, PERSISTENT_IMAGES_DIR);
@@ -117,7 +221,12 @@ const REDIRECT_URI =
   process.env.REDIRECT_URI || "http://localhost:3000/callback";
 
 app.use(cors());
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({
+  limit: "20mb",
+  verify: (req, res, buffer) => {
+    if (req.path === "/webhooks/quickbooks") req.rawBody = Buffer.from(buffer);
+  },
+}));
 app.use("/images/productos", express.static(PERSISTENT_IMAGES_DIR));
 app.use(express.static(__dirname));
 
@@ -1143,6 +1252,49 @@ app.post("/orders/:id/status", requiereRol("empleado", "jefe"), (req, res) => {
     });
   }
 });
+function firmaWebhookQuickBooksValida(req) {
+  if (!QBO_WEBHOOK_VERIFIER_TOKEN || !req.rawBody) return false;
+  const recibida = String(req.headers["intuit-signature"] || "");
+  const esperada = crypto.createHmac("sha256", QBO_WEBHOOK_VERIFIER_TOKEN)
+    .update(req.rawBody)
+    .digest("base64");
+  const a = Buffer.from(recibida);
+  const b = Buffer.from(esperada);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+async function procesarCambiosQuickBooks(notificaciones) {
+  const token = leerToken();
+  for (const notificacion of Array.isArray(notificaciones) ? notificaciones : []) {
+    if (notificacion.realmId && token.realmId && String(notificacion.realmId) !== String(token.realmId)) continue;
+    const entidades = notificacion.dataChangeEvent?.entities || [];
+    for (const entidad of entidades) {
+      if (String(entidad.name || "") !== "Invoice") continue;
+      const invoiceId = String(entidad.id || "").trim();
+      const operation = String(entidad.operation || "").trim();
+      if (!invoiceId) continue;
+      if (operation === "Delete") {
+        await sincronizarFacturaInventarioSeguro(invoiceId, [], { source: "webhook", operation });
+        console.log("QuickBooks: factura eliminada, inventario restaurado:", invoiceId);
+        continue;
+      }
+      if (!["Create", "Update"].includes(operation)) continue;
+      const data = await qboGet("/invoice/" + encodeURIComponent(invoiceId) + "?minorversion=75");
+      await sincronizarFacturaInventarioSeguro(invoiceId, data.Invoice || {}, { source: "webhook", operation });
+      console.log("QuickBooks: factura sincronizada con inventario:", invoiceId, operation);
+    }
+  }
+}
+
+app.post("/webhooks/quickbooks", (req, res) => {
+  if (!QBO_WEBHOOK_VERIFIER_TOKEN) return res.status(503).json({ error: "Falta QBO_WEBHOOK_VERIFIER_TOKEN en Railway" });
+  if (!firmaWebhookQuickBooksValida(req)) return res.status(401).json({ error: "Firma de QuickBooks no válida" });
+  res.status(200).json({ ok: true });
+  void procesarCambiosQuickBooks(req.body?.eventNotifications).catch((error) => {
+    console.error("ERROR SINCRONIZANDO FACTURA DE QUICKBOOKS:", error.response?.data || error.message || error);
+  });
+});
+
 app.post("/crear-factura", requiereRol("empleado", "jefe"), async (req, res) => {
   try {
     const {
@@ -1201,7 +1353,11 @@ app.post("/crear-factura", requiereRol("empleado", "jefe"), async (req, res) => 
     console.log(JSON.stringify(invoice, null, 2));
 
     const data = await qboPost("/invoice?minorversion=75", invoice);
-    const inventarioActualizado = descontarInventario(items);
+    const inventarioActualizado = await sincronizarFacturaInventarioSeguro(
+      data.Invoice?.Id,
+      data.Invoice || items,
+      { source: "app", operation: "Create" }
+    );
     let email = null;
 
     if (sendEmail) {
@@ -1472,7 +1628,7 @@ app.post("/buscar-por-barcode", async (req, res) => {
     form.append("prompt", "Pedido de productos de Distribuidora L&P. Puede incluir marcas como Sabritas, Cheetos, Doritos, Barcel, Tostitos, Galletas, Bebidas, Abarrotes y Dulces, además de cantidades.");
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", { method:"POST", headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` }, body:form });
     const data=await response.json().catch(()=>({}));
-    if(!response.ok) return res.status(response.status).json({ error:"OpenAI no pudo transcribir el audio", detalle:data });
+    if(!response.ok) return res.status(response.status).json({ error:"OpenAI no pudo transcribir el audio", detalle:data, codigo:data?.error?.code||data?.error?.type||response.status });
     res.json({ ok:true, texto:String(data.text||"").trim() });
   } catch(error) { console.error("ERROR TRANSCRIBIENDO VOZ:",error.message||error); res.status(500).json({ error:"No se pudo procesar la voz", detalle:error.message||String(error) }); }
 });
