@@ -1263,7 +1263,53 @@ function firmaWebhookQuickBooksValida(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-async function procesarCambiosQuickBooks(notificaciones) {
+function normalizarEventosWebhookQuickBooks(payload) {
+  const antiguos = Array.isArray(payload?.eventNotifications)
+    ? payload.eventNotifications
+    : null;
+  if (antiguos) return antiguos;
+
+  const eventos = Array.isArray(payload) ? payload : [payload];
+  const operaciones = {
+    create: "Create",
+    created: "Create",
+    update: "Update",
+    updated: "Update",
+    delete: "Delete",
+    deleted: "Delete",
+    merge: "Merge",
+    merged: "Merge",
+  };
+
+  return eventos
+    .map((evento) => {
+      const partes = String(evento?.type || "").split(".");
+      const entidadTipo = String(
+        evento?.data?.name || partes[1] || ""
+      ).trim();
+      const operacion = String(
+        evento?.data?.operation || operaciones[String(partes[2] || "").toLowerCase()] || ""
+      ).trim();
+      const id = String(
+        evento?.intuitentityid || evento?.data?.id || evento?.data?.entityId || ""
+      ).trim();
+      const nombre = entidadTipo
+        ? entidadTipo.charAt(0).toUpperCase() + entidadTipo.slice(1)
+        : "";
+      return {
+        realmId: evento?.intuitaccountid || evento?.realmId || "",
+        dataChangeEvent: {
+          entities: id && nombre && operacion
+            ? [{ id, name: nombre, operation: operacion }]
+            : [],
+        },
+      };
+    })
+    .filter((evento) => evento.dataChangeEvent.entities.length > 0);
+}
+
+async function procesarCambiosQuickBooks(payload) {
+  const notificaciones = normalizarEventosWebhookQuickBooks(payload);
   const token = leerToken();
   for (const notificacion of Array.isArray(notificaciones) ? notificaciones : []) {
     if (notificacion.realmId && token.realmId && String(notificacion.realmId) !== String(token.realmId)) continue;
@@ -1290,7 +1336,7 @@ app.post("/webhooks/quickbooks", (req, res) => {
   if (!QBO_WEBHOOK_VERIFIER_TOKEN) return res.status(503).json({ error: "Falta QBO_WEBHOOK_VERIFIER_TOKEN en Railway" });
   if (!firmaWebhookQuickBooksValida(req)) return res.status(401).json({ error: "Firma de QuickBooks no válida" });
   res.status(200).json({ ok: true });
-  void procesarCambiosQuickBooks(req.body?.eventNotifications).catch((error) => {
+  void procesarCambiosQuickBooks(req.body).catch((error) => {
     console.error("ERROR SINCRONIZANDO FACTURA DE QUICKBOOKS:", error.response?.data || error.message || error);
   });
 });
