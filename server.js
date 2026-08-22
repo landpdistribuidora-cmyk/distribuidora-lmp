@@ -22,7 +22,15 @@ const PRODUCTS_CACHE_FILE = path.join(PERSISTENT_DATA_DIR, "productos-qbo-cache.
 const PRODUCTS_CACHE_TTL_MS = 60 * 1000;
 const INVENTORY_FILE = path.join(PERSISTENT_DATA_DIR, "inventario.json");
 const INVOICE_SYNC_FILE = path.join(PERSISTENT_DATA_DIR, "facturas-inventario-sync.json");
-const QBO_WEBHOOK_VERIFIER_TOKEN = process.env.QBO_WEBHOOK_VERIFIER_TOKEN || "";
+const QBO_INVENTORY_POLL_FILE = path.join(
+  PERSISTENT_DATA_DIR,
+  "qbo-inventario-ultima-revision.json"
+);
+const QBO_INVENTORY_POLL_INTERVAL_MS = 60 * 1000;
+const QBO_INVENTORY_POLL_START_AT = new Date().toISOString();
+const QBO_WEBHOOK_VERIFIER_TOKEN = String(
+  process.env.QBO_WEBHOOK_VERIFIER_TOKEN || ""
+).trim();
 
 fs.mkdirSync(PERSISTENT_IMAGES_DIR, { recursive: true });
 
@@ -129,24 +137,46 @@ function extraerLineasInventario(origen) {
   return mapa;
 }
 
-function aplicarDiferenciaInventario(lineasNuevas, lineasAnteriores) {
+function aplicarDiferenciaInventario(lineasNuevas, lineasAnteriores, contexto = {}) {
   const inventario = leerInventario();
   const ids = new Set([
     ...Object.keys(lineasNuevas || {}),
     ...Object.keys(lineasAnteriores || {}),
   ]);
+  const cambios = [];
+  const idsNoEncontrados = [];
   for (const itemId of ids) {
     const diferencia =
       Number(lineasNuevas?.[itemId] || 0) -
       Number(lineasAnteriores?.[itemId] || 0);
-    if (!diferencia || !inventario[itemId]) continue;
+    if (!diferencia) continue;
+    if (!inventario[itemId]) {
+      idsNoEncontrados.push(itemId);
+      continue;
+    }
+    const cantidadAntes = Number(inventario[itemId].cantidad || 0);
     inventario[itemId].cantidad = Math.max(
       0,
-      Number(inventario[itemId].cantidad || 0) - diferencia
+      cantidadAntes - diferencia
     );
     inventario[itemId].updatedAt = new Date().toISOString();
+    cambios.push({
+      itemId,
+      cantidadFactura: Number(lineasNuevas?.[itemId] || 0),
+      cantidadAnteriorFactura: Number(lineasAnteriores?.[itemId] || 0),
+      diferencia,
+      cantidadAntes,
+      cantidadDespues: inventario[itemId].cantidad,
+    });
   }
   guardarInventario(inventario);
+  console.log("QBO INVENTARIO RESULTADO:", JSON.stringify({
+    invoiceId: contexto.invoiceId || "",
+    source: contexto.source || "",
+    operation: contexto.operation || "",
+    cambios,
+    idsNoEncontrados,
+  }));
   return inventario;
 }
 
@@ -158,8 +188,21 @@ function sincronizarFacturaInventario(invoiceId, origen, opciones = {}) {
   const anterior = sincronizadas[id];
 
   // Si encontramos una factura antigua que solo fue editada después de activar
-  // la sincronización, guardamos la base sin descontarla otra vez.
-  if (!anterior && opciones.source === "webhook" && opciones.operation === "Update") {
+  // la sincronización, guardamos la base sin descontarla otra vez. Una factura
+  // recién creada puede llegar de QuickBooks como Update, por eso la tratamos
+  // como nueva cuando su CreateTime pertenece a esta activación.
+  const fechaCreacion = Date.parse(origen?.MetaData?.CreateTime || "");
+  const integracionActivaDesde = Date.parse(QBO_INVENTORY_POLL_START_AT);
+  const facturaNuevaEnEstaActivacion =
+    Number.isFinite(fechaCreacion) &&
+    Number.isFinite(integracionActivaDesde) &&
+    fechaCreacion >= integracionActivaDesde - 60 * 1000;
+  if (
+    !anterior &&
+    opciones.source === "webhook" &&
+    opciones.operation === "Update" &&
+    !facturaNuevaEnEstaActivacion
+  ) {
     sincronizadas[id] = {
       lines: lineasNuevas,
       updatedAt: new Date().toISOString(),
@@ -169,10 +212,21 @@ function sincronizarFacturaInventario(invoiceId, origen, opciones = {}) {
     return leerInventario();
   }
 
+  // Una versión anterior podía guardar una factura como "baseline" cuando
+  // QuickBooks enviaba Update. La revisión automática debe convertir esa base
+  // en un descuento real una sola vez.
+  const lineasAnterioresParaDiferencia =
+    anterior?.source === "webhook-baseline" && opciones.source === "polling"
+      ? {}
+      : anterior?.lines || {};
   const inventario = aplicarDiferenciaInventario(
     lineasNuevas,
-    anterior?.lines || {}
+    lineasAnterioresParaDiferencia,
+    { invoiceId: id, source: opciones.source, operation: opciones.operation }
   );
+  if (!Object.keys(lineasNuevas).length) {
+    console.log("QBO INVENTARIO: la factura no contiene líneas de producto:", id);
+  }
   sincronizadas[id] = {
     lines: lineasNuevas,
     updatedAt: new Date().toISOString(),
@@ -375,7 +429,10 @@ app.use((req, res, next) => {
   return protegida ? requiereSesion(req, res, next) : next();
 });
 
-app.get("/api/inventario", requiereRol("jefe", "empleado"), (req, res) => {
+app.get("/api/inventario", requiereRol("jefe", "empleado"), async (req, res) => {
+  if (req.sesion?.rol === "jefe") {
+    await sincronizarFacturasQboRecientes();
+  }
   res.json({ inventario: leerInventario() });
 });
 
@@ -536,26 +593,36 @@ function leerToken() {
   return JSON.parse(fs.readFileSync(TOKEN_FILE, "utf8"));
 }
 
+let tokenRefreshEnCurso = null;
+
 async function obtenerTokenValido() {
-  const token = leerToken();
-  oauthClient.setToken(token);
+  if (tokenRefreshEnCurso) return tokenRefreshEnCurso;
 
-  try {
-    const nuevo = await oauthClient.refreshUsingToken(token.refresh_token);
-    const nuevoToken = nuevo.getJson();
+  tokenRefreshEnCurso = (async () => {
+    const token = leerToken();
+    oauthClient.setToken(token);
 
-    nuevoToken.realmId = token.realmId;
+    try {
+      const nuevo = await oauthClient.refreshUsingToken(token.refresh_token);
+      const nuevoToken = nuevo.getJson();
 
-    guardarToken(nuevoToken);
-    return nuevoToken;
-  } catch (error) {
-    console.log("NO SE PUDO REFRESCAR TOKEN:");
-    console.log(
-      JSON.stringify(error.response?.data || error.message || error, null, 2)
-    );
+      nuevoToken.realmId = token.realmId;
 
-    throw new Error("QuickBooks necesita volver a conectarse en /connect-qbo");
-  }
+      guardarToken(nuevoToken);
+      return nuevoToken;
+    } catch (error) {
+      console.log("NO SE PUDO REFRESCAR TOKEN:");
+      console.log(
+        JSON.stringify(error.response?.data || error.message || error, null, 2)
+      );
+
+      throw new Error("QuickBooks necesita volver a conectarse en /connect-qbo");
+    } finally {
+      tokenRefreshEnCurso = null;
+    }
+  })();
+
+  return tokenRefreshEnCurso;
 }
 
 function qboBaseUrl(token) {
@@ -574,6 +641,97 @@ async function qboGet(pathUrl) {
   });
 
   return response.data;
+}
+
+function leerEstadoRevisionQbo() {
+  try {
+    if (!fs.existsSync(QBO_INVENTORY_POLL_FILE)) {
+      const inicial = {
+        lastSeenAt: QBO_INVENTORY_POLL_START_AT,
+        createdAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(QBO_INVENTORY_POLL_FILE, JSON.stringify(inicial, null, 2), "utf8");
+      return inicial;
+    }
+    const estado = JSON.parse(fs.readFileSync(QBO_INVENTORY_POLL_FILE, "utf8"));
+    if (!estado || !estado.lastSeenAt || !Number.isFinite(Date.parse(estado.lastSeenAt))) {
+      throw new Error("Estado de sincronización inválido");
+    }
+    return estado;
+  } catch (error) {
+    console.error("QBO INVENTARIO: no se pudo leer el estado de revisión:", error.message || error);
+    const inicial = { lastSeenAt: QBO_INVENTORY_POLL_START_AT, createdAt: new Date().toISOString() };
+    fs.writeFileSync(QBO_INVENTORY_POLL_FILE, JSON.stringify(inicial, null, 2), "utf8");
+    return inicial;
+  }
+}
+
+function guardarEstadoRevisionQbo(estado) {
+  fs.writeFileSync(QBO_INVENTORY_POLL_FILE, JSON.stringify(estado, null, 2), "utf8");
+}
+
+function fechaConsultaQbo(valor) {
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  return fecha.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+let qboInventarioRevisionEnCurso = null;
+
+async function sincronizarFacturasQboRecientes() {
+  if (qboInventarioRevisionEnCurso) return qboInventarioRevisionEnCurso;
+
+  qboInventarioRevisionEnCurso = (async () => {
+    const estado = leerEstadoRevisionQbo();
+    const ultima = Date.parse(estado.lastSeenAt);
+    // Dejamos cinco segundos de traslape para no perder facturas que compartan
+    // exactamente la misma hora. El archivo de sincronización evita duplicados.
+    const desde = new Date(Math.max(0, ultima - 5000));
+    const query = encodeURIComponent(
+      `SELECT * FROM Invoice WHERE MetaData.LastUpdatedTime >= '${fechaConsultaQbo(desde)}' MAXRESULTS 1000`
+    );
+    const data = await qboGet(`/query?query=${query}&minorversion=75`);
+    const facturas = Array.isArray(data?.QueryResponse?.Invoice)
+      ? data.QueryResponse.Invoice
+      : [];
+    let mayorFecha = ultima;
+
+    for (const factura of facturas) {
+      const invoiceId = String(factura?.Id || "").trim();
+      if (!invoiceId) continue;
+      const actualizada = Date.parse(factura?.MetaData?.LastUpdatedTime || "");
+      if (Number.isFinite(actualizada)) mayorFecha = Math.max(mayorFecha, actualizada);
+      await sincronizarFacturaInventarioSeguro(invoiceId, factura, {
+        source: "polling",
+        operation: "Create",
+      });
+    }
+
+    if (mayorFecha > ultima) {
+      guardarEstadoRevisionQbo({
+        ...estado,
+        lastSeenAt: new Date(mayorFecha).toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (facturas.length) {
+      console.log("QBO INVENTARIO: revisión automática terminada:", facturas.length, "factura(s)");
+    }
+    return facturas.length;
+  })()
+    .catch((error) => {
+      console.error(
+        "QBO INVENTARIO: error en revisión automática:",
+        error.response?.data || error.message || error
+      );
+      return 0;
+    })
+    .finally(() => {
+      qboInventarioRevisionEnCurso = null;
+    });
+
+  return qboInventarioRevisionEnCurso;
 }
 
 let productosRefreshEnCurso = null;
@@ -1254,7 +1412,10 @@ app.post("/orders/:id/status", requiereRol("empleado", "jefe"), (req, res) => {
 });
 function firmaWebhookQuickBooksValida(req) {
   if (!QBO_WEBHOOK_VERIFIER_TOKEN || !req.rawBody) return false;
-  const recibida = String(req.headers["intuit-signature"] || "");
+  let recibida = String(req.headers["intuit-signature"] || "").trim();
+  if (recibida.toLowerCase().startsWith("sha256=")) {
+    recibida = recibida.slice("sha256=".length).trim();
+  }
   const esperada = crypto.createHmac("sha256", QBO_WEBHOOK_VERIFIER_TOKEN)
     .update(req.rawBody)
     .digest("base64");
@@ -1283,13 +1444,18 @@ function normalizarEventosWebhookQuickBooks(payload) {
 
   return eventos
     .map((evento) => {
-      const partes = String(evento?.type || "").split(".");
+      const partes = String(evento?.type || evento?.eventType || "").split(".");
       const entidadTipo = String(
-        evento?.data?.name || partes[1] || ""
+        evento?.data?.name || evento?.data?.entityName || partes[1] || ""
       ).trim();
-      const operacion = String(
+      const operacionCruda = String(
         evento?.data?.operation || operaciones[String(partes[2] || "").toLowerCase()] || ""
       ).trim();
+      const operacion =
+        operaciones[operacionCruda.toLowerCase()] ||
+        (operacionCruda
+          ? operacionCruda.charAt(0).toUpperCase() + operacionCruda.slice(1).toLowerCase()
+          : "");
       const id = String(
         evento?.intuitentityid || evento?.data?.id || evento?.data?.entityId || ""
       ).trim();
@@ -1297,7 +1463,7 @@ function normalizarEventosWebhookQuickBooks(payload) {
         ? entidadTipo.charAt(0).toUpperCase() + entidadTipo.slice(1)
         : "";
       return {
-        realmId: evento?.intuitaccountid || evento?.realmId || "",
+        realmId: evento?.intuitaccountid || evento?.realmId || evento?.data?.realmId || "",
         dataChangeEvent: {
           entities: id && nombre && operacion
             ? [{ id, name: nombre, operation: operacion }]
@@ -1333,8 +1499,21 @@ async function procesarCambiosQuickBooks(payload) {
 }
 
 app.post("/webhooks/quickbooks", (req, res) => {
-  if (!QBO_WEBHOOK_VERIFIER_TOKEN) return res.status(503).json({ error: "Falta QBO_WEBHOOK_VERIFIER_TOKEN en Railway" });
-  if (!firmaWebhookQuickBooksValida(req)) return res.status(401).json({ error: "Firma de QuickBooks no válida" });
+  console.log("QBO WEBHOOK RECIBIDO:", JSON.stringify({
+    rawBodyBytes: Buffer.isBuffer(req.rawBody) ? req.rawBody.length : 0,
+    tieneFirma: Boolean(req.headers["intuit-signature"]),
+    tieneToken: Boolean(QBO_WEBHOOK_VERIFIER_TOKEN),
+    contentType: req.headers["content-type"] || "",
+  }));
+  if (!QBO_WEBHOOK_VERIFIER_TOKEN) {
+    console.error("QBO WEBHOOK RECHAZADO: falta QBO_WEBHOOK_VERIFIER_TOKEN");
+    return res.status(503).json({ error: "Falta QBO_WEBHOOK_VERIFIER_TOKEN en Railway" });
+  }
+  if (!firmaWebhookQuickBooksValida(req)) {
+    console.error("QBO WEBHOOK RECHAZADO: firma inválida o cuerpo sin capturar");
+    return res.status(401).json({ error: "Firma de QuickBooks no válida" });
+  }
+  console.log("QBO WEBHOOK ACEPTADO");
   res.status(200).json({ ok: true });
   void procesarCambiosQuickBooks(req.body).catch((error) => {
     console.error("ERROR SINCRONIZANDO FACTURA DE QUICKBOOKS:", error.response?.data || error.message || error);
@@ -1671,7 +1850,7 @@ app.post("/buscar-por-barcode", async (req, res) => {
     const form = new FormData();
     form.append("file", new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" }), req.file.originalname || "orden.webm");
     form.append("model", "gpt-transcribe"); form.append("language", "es");
-    form.append("prompt", "Pedido de productos de Distribuidora L&P. Puede incluir marcas como Sabritas, Cheetos, Doritos, Barcel, Tostitos, Galletas, Bebidas, Abarrotes y Dulces, además de cantidades.");
+    form.append("prompt", "Comandos de Distribuidora L&P para pedidos o inventario. Conserva exactamente las cantidades y los nombres de productos, marcas y salsas. Ejemplos de inventario: 20 Salsa Huichol, 6 Tapatío, 10 onzas. Puede incluir Sabritas, Cheetos, Doritos, Barcel, Tostitos, Galletas, Bebidas, Abarrotes y Dulces.");
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", { method:"POST", headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` }, body:form });
     const data=await response.json().catch(()=>({}));
     if(!response.ok) return res.status(response.status).json({ error:"OpenAI no pudo transcribir el audio", detalle:data, codigo:data?.error?.code||data?.error?.type||response.status });
@@ -1736,3 +1915,9 @@ const productosSyncTimer = setInterval(() => {
   void actualizarCacheProductos();
 }, PRODUCTS_CACHE_TTL_MS);
 productosSyncTimer.unref?.();
+
+const qboInventarioSyncTimer = setInterval(() => {
+  void sincronizarFacturasQboRecientes();
+}, QBO_INVENTORY_POLL_INTERVAL_MS);
+qboInventarioSyncTimer.unref?.();
+void sincronizarFacturasQboRecientes();
