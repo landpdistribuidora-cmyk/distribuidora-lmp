@@ -32,6 +32,12 @@ const QBO_INVENTORY_POLL_INTERVAL_MS = Math.max(
   15 * 1000,
   Number(process.env.QBO_INVENTORY_POLL_INTERVAL_MS || 30 * 1000)
 );
+// Si QuickBooks elimina la factura, puede dejar de devolverla en la consulta.
+// Esta revisión consulta el registro local de facturas y detecta también ese caso.
+const QBO_INVENTORY_RECONCILE_INTERVAL_MS = Math.max(
+  60 * 1000,
+  Number(process.env.QBO_INVENTORY_RECONCILE_INTERVAL_MS || 60 * 1000)
+);
 const QBO_INVENTORY_POLL_START_AT = new Date().toISOString();
 const OPENAI_TRANSCRIBE_MODEL = String(
   process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-transcribe"
@@ -172,6 +178,25 @@ function extraerLineasInventario(origen) {
   return mapa;
 }
 
+function facturaEstaAnulada(factura) {
+  if (!factura || typeof factura !== "object") return false;
+  if (factura.Void === true || String(factura.Void || "").toLowerCase() === "true") return true;
+  const estados = [
+    factura.TxnStatus,
+    factura.invoiceStatus,
+    factura.InvoiceStatus,
+    factura.Status,
+    factura.status,
+  ];
+  return estados.some((estado) => /^(void|voided|deleted|reversed|cancelled|canceled)$/i.test(String(estado || "").trim()));
+}
+
+function facturaNoEncontradaQbo(error) {
+  const status = Number(error?.response?.status || 0);
+  const texto = JSON.stringify(error?.response?.data || error?.message || "").toLowerCase();
+  return status === 404 || ((status === 400 || status === 410) && /(not found|object not found|does not exist|deleted)/i.test(texto));
+}
+
 function aplicarDiferenciaInventario(lineasNuevas, lineasAnteriores, contexto = {}) {
   const inventario = leerInventario();
   const ids = new Set([
@@ -219,7 +244,8 @@ function aplicarDiferenciaInventario(lineasNuevas, lineasAnteriores, contexto = 
 function sincronizarFacturaInventario(invoiceId, origen, opciones = {}) {
   const id = String(invoiceId || "").trim();
   if (!id) return leerInventario();
-  const lineasNuevas = extraerLineasInventario(origen);
+  const lineasDelOrigen = extraerLineasInventario(origen);
+  const lineasNuevas = opciones.restaurar ? {} : lineasDelOrigen;
   const sincronizadas = leerSincronizacionFacturas();
   const anterior = sincronizadas[id];
 
@@ -251,10 +277,13 @@ function sincronizarFacturaInventario(invoiceId, origen, opciones = {}) {
   // Una versión anterior podía guardar una factura como "baseline" cuando
   // QuickBooks enviaba Update. La revisión automática debe convertir esa base
   // en un descuento real una sola vez.
-  const lineasAnterioresParaDiferencia =
-    anterior?.source === "webhook-baseline" && opciones.source === "polling"
-      ? {}
-      : anterior?.lines || {};
+  let lineasAnterioresParaDiferencia = anterior?.lines || {};
+  if (anterior?.source === "webhook-baseline" && ["polling", "reconciliation"].includes(opciones.source)) {
+    lineasAnterioresParaDiferencia = {};
+  }
+  if (!anterior && opciones.restaurar) {
+    lineasAnterioresParaDiferencia = lineasDelOrigen;
+  }
   const inventario = aplicarDiferenciaInventario(
     lineasNuevas,
     lineasAnterioresParaDiferencia,
@@ -470,7 +499,7 @@ app.get("/api/inventario", requiereRol("jefe", "empleado"), async (req, res) => 
   // de fondo no bloquean la pantalla y siguen corriendo cada 30 segundos.
   if (req.sesion?.rol === "jefe") {
     if (String(req.query?.sync || "") === "1") {
-      await sincronizarFacturasQboRecientes();
+      await sincronizarFacturasQboRecientes({ reconciliar: true });
     } else {
       void sincronizarFacturasQboRecientes();
     }
@@ -720,8 +749,53 @@ function fechaConsultaQbo(valor) {
 
 let qboInventarioRevisionEnCurso = null;
 
-async function sincronizarFacturasQboRecientes() {
-  if (qboInventarioRevisionEnCurso) return qboInventarioRevisionEnCurso;
+async function reconciliarFacturasRegistradas() {
+  const sincronizadas = leerSincronizacionFacturas();
+  let revisadas = 0;
+  let restauradas = 0;
+
+  for (const [invoiceId, registro] of Object.entries(sincronizadas)) {
+    if (!registro || !Object.keys(registro.lines || {}).length) continue;
+    revisadas += 1;
+    try {
+      const data = await qboGet("/invoice/" + encodeURIComponent(invoiceId) + "?minorversion=75");
+      const factura = data?.Invoice;
+      if (!factura) continue;
+      const anulada = facturaEstaAnulada(factura);
+      await sincronizarFacturaInventarioSeguro(invoiceId, factura, {
+        source: "reconciliation",
+        operation: anulada ? "Void" : "Update",
+        restaurar: anulada,
+      });
+      if (anulada) {
+        restauradas += 1;
+        console.log("QBO INVENTARIO: factura anulada detectada al reconciliar, inventario restaurado:", invoiceId);
+      }
+    } catch (error) {
+      if (!facturaNoEncontradaQbo(error)) {
+        console.error("QBO INVENTARIO: no se pudo reconciliar factura:", invoiceId, error.response?.data || error.message || error);
+        continue;
+      }
+      await sincronizarFacturaInventarioSeguro(invoiceId, [], {
+        source: "reconciliation",
+        operation: "Delete",
+        restaurar: true,
+      });
+      restauradas += 1;
+      console.log("QBO INVENTARIO: factura eliminada detectada al reconciliar, inventario restaurado:", invoiceId);
+    }
+  }
+
+  return { revisadas, restauradas };
+}
+
+async function sincronizarFacturasQboRecientes(opciones = {}) {
+  if (qboInventarioRevisionEnCurso) {
+    const resultadoActual = await qboInventarioRevisionEnCurso;
+    return opciones.reconciliar
+      ? sincronizarFacturasQboRecientes(opciones)
+      : resultadoActual;
+  }
 
   qboInventarioRevisionEnCurso = (async () => {
     const estado = leerEstadoRevisionQbo();
@@ -743,13 +817,17 @@ async function sincronizarFacturasQboRecientes() {
       if (!invoiceId) continue;
       const actualizada = Date.parse(factura?.MetaData?.LastUpdatedTime || "");
       if (Number.isFinite(actualizada)) mayorFecha = Math.max(mayorFecha, actualizada);
-      const anulada = factura?.Void === true ||
-        String(factura?.TxnStatus || "").toLowerCase() === "voided";
-      await sincronizarFacturaInventarioSeguro(invoiceId, anulada ? [] : factura, {
+      const anulada = facturaEstaAnulada(factura);
+      await sincronizarFacturaInventarioSeguro(invoiceId, factura, {
         source: "polling",
         operation: anulada ? "Void" : "Create",
+        restaurar: anulada,
       });
     }
+
+    const reconciliacion = opciones.reconciliar
+      ? await reconciliarFacturasRegistradas()
+      : { revisadas: 0, restauradas: 0 };
 
     if (mayorFecha > ultima) {
       guardarEstadoRevisionQbo({
@@ -759,8 +837,15 @@ async function sincronizarFacturasQboRecientes() {
       });
     }
 
-    if (facturas.length) {
-      console.log("QBO INVENTARIO: revisión automática terminada:", facturas.length, "factura(s)");
+    if (facturas.length || reconciliacion.revisadas || reconciliacion.restauradas) {
+      console.log(
+        "QBO INVENTARIO: revisión automática terminada:",
+        facturas.length,
+        "factura(s); reconciliadas:",
+        reconciliacion.revisadas,
+        "; restauradas:",
+        reconciliacion.restauradas
+      );
     }
     return facturas.length;
   })()
@@ -1534,22 +1619,28 @@ async function procesarCambiosQuickBooks(payload) {
       if (String(entidad.name || "").toLowerCase() !== "invoice") continue;
       const invoiceId = String(entidad.id || "").trim();
       const operation = String(entidad.operation || "").trim();
+      const operationLower = operation.toLowerCase();
       if (!invoiceId) continue;
-      if (operation === "Delete" || operation === "Void") {
-        await sincronizarFacturaInventarioSeguro(invoiceId, [], { source: "webhook", operation });
+      if (["delete", "deleted", "void", "voided"].includes(operationLower)) {
+        const operationCanonica = operationLower.startsWith("delete") ? "Delete" : "Void";
+        await sincronizarFacturaInventarioSeguro(invoiceId, [], {
+          source: "webhook",
+          operation: operationCanonica,
+          restaurar: true,
+        });
         console.log("QuickBooks: factura eliminada/anulada, inventario restaurado:", invoiceId);
         continue;
       }
-      if (!["Create", "Update"].includes(operation)) continue;
+      if (!["create", "update"].includes(operationLower)) continue;
       const data = await qboGet("/invoice/" + encodeURIComponent(invoiceId) + "?minorversion=75");
       const factura = data.Invoice || {};
-      const anulada = factura?.Void === true ||
-        String(factura?.TxnStatus || "").toLowerCase() === "voided";
-      await sincronizarFacturaInventarioSeguro(invoiceId, anulada ? [] : factura, {
+      const anulada = facturaEstaAnulada(factura);
+      await sincronizarFacturaInventarioSeguro(invoiceId, factura, {
         source: "webhook",
-        operation: anulada ? "Void" : operation,
+        operation: anulada ? "Void" : operationLower === "create" ? "Create" : "Update",
+        restaurar: anulada,
       });
-      console.log("QuickBooks: factura sincronizada con inventario:", invoiceId, anulada ? "Void" : operation);
+      console.log("QuickBooks: factura sincronizada con inventario:", invoiceId, anulada ? "Void" : operationLower);
     }
   }
 }
@@ -1990,4 +2081,9 @@ const qboInventarioSyncTimer = setInterval(() => {
   void sincronizarFacturasQboRecientes();
 }, QBO_INVENTORY_POLL_INTERVAL_MS);
 qboInventarioSyncTimer.unref?.();
+
+const qboInventarioReconcileTimer = setInterval(() => {
+  void sincronizarFacturasQboRecientes({ reconciliar: true });
+}, QBO_INVENTORY_RECONCILE_INTERVAL_MS);
+qboInventarioReconcileTimer.unref?.();
 void sincronizarFacturasQboRecientes();
