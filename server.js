@@ -26,8 +26,16 @@ const QBO_INVENTORY_POLL_FILE = path.join(
   PERSISTENT_DATA_DIR,
   "qbo-inventario-ultima-revision.json"
 );
-const QBO_INVENTORY_POLL_INTERVAL_MS = 60 * 1000;
+// Revisa QuickBooks con frecuencia suficiente para que una factura manual se
+// refleje en el inventario sin depender únicamente del webhook.
+const QBO_INVENTORY_POLL_INTERVAL_MS = Math.max(
+  15 * 1000,
+  Number(process.env.QBO_INVENTORY_POLL_INTERVAL_MS || 30 * 1000)
+);
 const QBO_INVENTORY_POLL_START_AT = new Date().toISOString();
+const OPENAI_TRANSCRIBE_MODEL = String(
+  process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-transcribe"
+).trim();
 const QBO_WEBHOOK_VERIFIER_TOKEN = String(
   process.env.QBO_WEBHOOK_VERIFIER_TOKEN || ""
 ).trim();
@@ -91,17 +99,39 @@ function guardarInventario(inventario) {
   fs.writeFileSync(INVENTORY_FILE, JSON.stringify(inventario, null, 2), "utf8");
 }
 
+function claveInventario(inventario, itemId) {
+  const id = String(itemId || "").trim();
+  if (!id) return null;
+  if (Object.prototype.hasOwnProperty.call(inventario, id)) return id;
+
+  // QBO siempre debe mandar el mismo Id, pero toleramos espacios invisibles
+  // para no perder el descuento si el registro se capturó manualmente.
+  const compacto = id.replace(/\s+/g, "");
+  return Object.keys(inventario).find((clave) => {
+    const texto = String(clave).trim();
+    return texto === id || texto.replace(/\s+/g, "") === compacto;
+  }) || null;
+}
+
 function descontarInventario(items) {
   const inventario = leerInventario();
+  const idsNoEncontrados = [];
   for (const item of Array.isArray(items) ? items : []) {
     const itemId = String(item.itemId || item.id || "").trim();
     const qty = Number(item.qty ?? item.quantity ?? item.cantidad ?? 0);
     if (!itemId || !Number.isFinite(qty) || qty <= 0) continue;
-    if (!inventario[itemId]) continue;
-    inventario[itemId].cantidad = Math.max(0, Number(inventario[itemId].cantidad || 0) - qty);
-    inventario[itemId].updatedAt = new Date().toISOString();
+    const clave = claveInventario(inventario, itemId);
+    if (!clave) {
+      idsNoEncontrados.push(itemId);
+      continue;
+    }
+    inventario[clave].cantidad = Math.max(0, Number(inventario[clave].cantidad || 0) - qty);
+    inventario[clave].updatedAt = new Date().toISOString();
   }
   guardarInventario(inventario);
+  if (idsNoEncontrados.length) {
+    console.warn("INVENTARIO: IDs no encontrados al descontar:", idsNoEncontrados);
+  }
   return inventario;
 }
 
@@ -124,9 +154,14 @@ function extraerLineasInventario(origen) {
   const lineas = Array.isArray(origen) ? origen : origen?.Line || [];
   const mapa = {};
   for (const linea of lineas) {
-    const detalle = linea?.SalesItemLineDetail || {};
+    const detalle = linea?.SalesItemLineDetail || linea?.salesItemLineDetail || {};
     const itemId = String(
-      detalle?.ItemRef?.value || linea?.itemId || linea?.id || ""
+      detalle?.ItemRef?.value ||
+      detalle?.itemRef?.value ||
+      linea?.ItemRef?.value ||
+      linea?.itemId ||
+      linea?.id ||
+      ""
     ).trim();
     const cantidad = Number(
       detalle?.Qty ?? linea?.qty ?? linea?.quantity ?? linea?.cantidad ?? 0
@@ -150,23 +185,24 @@ function aplicarDiferenciaInventario(lineasNuevas, lineasAnteriores, contexto = 
       Number(lineasNuevas?.[itemId] || 0) -
       Number(lineasAnteriores?.[itemId] || 0);
     if (!diferencia) continue;
-    if (!inventario[itemId]) {
+    const clave = claveInventario(inventario, itemId);
+    if (!clave) {
       idsNoEncontrados.push(itemId);
       continue;
     }
-    const cantidadAntes = Number(inventario[itemId].cantidad || 0);
-    inventario[itemId].cantidad = Math.max(
+    const cantidadAntes = Number(inventario[clave].cantidad || 0);
+    inventario[clave].cantidad = Math.max(
       0,
       cantidadAntes - diferencia
     );
-    inventario[itemId].updatedAt = new Date().toISOString();
+    inventario[clave].updatedAt = new Date().toISOString();
     cambios.push({
       itemId,
       cantidadFactura: Number(lineasNuevas?.[itemId] || 0),
       cantidadAnteriorFactura: Number(lineasAnteriores?.[itemId] || 0),
       diferencia,
       cantidadAntes,
-      cantidadDespues: inventario[itemId].cantidad,
+      cantidadDespues: inventario[clave].cantidad,
     });
   }
   guardarInventario(inventario);
@@ -430,8 +466,14 @@ app.use((req, res, next) => {
 });
 
 app.get("/api/inventario", requiereRol("jefe", "empleado"), async (req, res) => {
+  // Abrir la ventana del jefe hace una revisión inmediata; las actualizaciones
+  // de fondo no bloquean la pantalla y siguen corriendo cada 30 segundos.
   if (req.sesion?.rol === "jefe") {
-    await sincronizarFacturasQboRecientes();
+    if (String(req.query?.sync || "") === "1") {
+      await sincronizarFacturasQboRecientes();
+    } else {
+      void sincronizarFacturasQboRecientes();
+    }
   }
   res.json({ inventario: leerInventario() });
 });
@@ -1416,12 +1458,16 @@ function firmaWebhookQuickBooksValida(req) {
   if (recibida.toLowerCase().startsWith("sha256=")) {
     recibida = recibida.slice("sha256=".length).trim();
   }
-  const esperada = crypto.createHmac("sha256", QBO_WEBHOOK_VERIFIER_TOKEN)
-    .update(req.rawBody)
-    .digest("base64");
-  const a = Buffer.from(recibida);
-  const b = Buffer.from(esperada);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  const esperadas = [
+    crypto.createHmac("sha256", QBO_WEBHOOK_VERIFIER_TOKEN).update(req.rawBody).digest("base64"),
+    crypto.createHmac("sha256", QBO_WEBHOOK_VERIFIER_TOKEN).update(req.rawBody).digest("hex"),
+    crypto.createHmac("sha256", QBO_WEBHOOK_VERIFIER_TOKEN).update(req.rawBody).digest("base64url"),
+  ];
+  return esperadas.some((esperada) => {
+    const a = Buffer.from(recibida);
+    const b = Buffer.from(esperada);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  });
 }
 
 function normalizarEventosWebhookQuickBooks(payload) {
@@ -1481,7 +1527,7 @@ async function procesarCambiosQuickBooks(payload) {
     if (notificacion.realmId && token.realmId && String(notificacion.realmId) !== String(token.realmId)) continue;
     const entidades = notificacion.dataChangeEvent?.entities || [];
     for (const entidad of entidades) {
-      if (String(entidad.name || "") !== "Invoice") continue;
+      if (String(entidad.name || "").toLowerCase() !== "invoice") continue;
       const invoiceId = String(entidad.id || "").trim();
       const operation = String(entidad.operation || "").trim();
       if (!invoiceId) continue;
@@ -1849,12 +1895,13 @@ app.post("/buscar-por-barcode", async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No se recibió audio" });
     const form = new FormData();
     form.append("file", new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" }), req.file.originalname || "orden.webm");
-    form.append("model", "gpt-transcribe"); form.append("language", "es");
-    form.append("prompt", "Comandos de Distribuidora L&P para pedidos o inventario. Conserva exactamente las cantidades y los nombres de productos, marcas y salsas. Ejemplos de inventario: 20 Salsa Huichol, 6 Tapatío, 10 onzas. Puede incluir Sabritas, Cheetos, Doritos, Barcel, Tostitos, Galletas, Bebidas, Abarrotes y Dulces.");
+    form.append("model", OPENAI_TRANSCRIBE_MODEL);
+    form.append("language", "es");
+    form.append("prompt", "Comandos de Distribuidora L&P para pedidos o inventario. Conserva exactamente las cantidades y los nombres de productos, marcas y salsas. Ejemplos de inventario: 20 Salsa Huichol, 6 Tapatío, 10 onzas. Puede incluir Sabritas, Cheetos, Doritos, Barcel, Tostitos, Galletas, Bebidas, Abarrotes y Dulces. No traduzcas los nombres propios.");
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", { method:"POST", headers:{ Authorization:`Bearer ${process.env.OPENAI_API_KEY}` }, body:form });
     const data=await response.json().catch(()=>({}));
     if(!response.ok) return res.status(response.status).json({ error:"OpenAI no pudo transcribir el audio", detalle:data, codigo:data?.error?.code||data?.error?.type||response.status });
-    res.json({ ok:true, texto:String(data.text||"").trim() });
+    res.json({ ok:true, texto:String(data.text||"").trim(), modelo:OPENAI_TRANSCRIBE_MODEL });
   } catch(error) { console.error("ERROR TRANSCRIBIENDO VOZ:",error.message||error); res.status(500).json({ error:"No se pudo procesar la voz", detalle:error.message||String(error) }); }
 });
 
