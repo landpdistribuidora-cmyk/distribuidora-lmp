@@ -743,9 +743,11 @@ async function sincronizarFacturasQboRecientes() {
       if (!invoiceId) continue;
       const actualizada = Date.parse(factura?.MetaData?.LastUpdatedTime || "");
       if (Number.isFinite(actualizada)) mayorFecha = Math.max(mayorFecha, actualizada);
-      await sincronizarFacturaInventarioSeguro(invoiceId, factura, {
+      const anulada = factura?.Void === true ||
+        String(factura?.TxnStatus || "").toLowerCase() === "voided";
+      await sincronizarFacturaInventarioSeguro(invoiceId, anulada ? [] : factura, {
         source: "polling",
-        operation: "Create",
+        operation: anulada ? "Void" : "Create",
       });
     }
 
@@ -1484,6 +1486,8 @@ function normalizarEventosWebhookQuickBooks(payload) {
     updated: "Update",
     delete: "Delete",
     deleted: "Delete",
+    void: "Void",
+    voided: "Void",
     merge: "Merge",
     merged: "Merge",
   };
@@ -1531,9 +1535,9 @@ async function procesarCambiosQuickBooks(payload) {
       const invoiceId = String(entidad.id || "").trim();
       const operation = String(entidad.operation || "").trim();
       if (!invoiceId) continue;
-      if (operation === "Delete") {
+      if (operation === "Delete" || operation === "Void") {
         await sincronizarFacturaInventarioSeguro(invoiceId, [], { source: "webhook", operation });
-        console.log("QuickBooks: factura eliminada, inventario restaurado:", invoiceId);
+        console.log("QuickBooks: factura eliminada/anulada, inventario restaurado:", invoiceId);
         continue;
       }
       if (!["Create", "Update"].includes(operation)) continue;
