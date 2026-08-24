@@ -1542,8 +1542,14 @@ async function procesarCambiosQuickBooks(payload) {
       }
       if (!["Create", "Update"].includes(operation)) continue;
       const data = await qboGet("/invoice/" + encodeURIComponent(invoiceId) + "?minorversion=75");
-      await sincronizarFacturaInventarioSeguro(invoiceId, data.Invoice || {}, { source: "webhook", operation });
-      console.log("QuickBooks: factura sincronizada con inventario:", invoiceId, operation);
+      const factura = data.Invoice || {};
+      const anulada = factura?.Void === true ||
+        String(factura?.TxnStatus || "").toLowerCase() === "voided";
+      await sincronizarFacturaInventarioSeguro(invoiceId, anulada ? [] : factura, {
+        source: "webhook",
+        operation: anulada ? "Void" : operation,
+      });
+      console.log("QuickBooks: factura sincronizada con inventario:", invoiceId, anulada ? "Void" : operation);
     }
   }
 }
@@ -1897,8 +1903,21 @@ app.post("/buscar-por-barcode", async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "Falta configurar OPENAI_API_KEY en Railway" });
     if (!req.file) return res.status(400).json({ error: "No se recibió audio" });
+    if (!req.file.buffer || req.file.buffer.length < 100) return res.status(400).json({ error: "La grabación llegó vacía o incompleta. Vuelve a intentarlo." });
+    const nombreAudio = String(req.file.originalname || "orden.wav").trim() || "orden.wav";
+    const extensionAudio = (nombreAudio.split(".").pop() || "wav").toLowerCase();
+    const tiposAudio = {
+      wav: "audio/wav",
+      webm: "audio/webm",
+      mp3: "audio/mpeg",
+      mp4: "audio/mp4",
+      m4a: "audio/mp4",
+      ogg: "audio/ogg",
+      flac: "audio/flac",
+    };
+    const tipoAudio = tiposAudio[extensionAudio] || String(req.file.mimetype || "audio/wav");
     const form = new FormData();
-    form.append("file", new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" }), req.file.originalname || "orden.webm");
+    form.append("file", new Blob([req.file.buffer], { type: tipoAudio }), nombreAudio);
     form.append("model", OPENAI_TRANSCRIBE_MODEL);
     form.append("language", "es");
     form.append("prompt", "Comandos de Distribuidora L&P para pedidos o inventario. Conserva exactamente las cantidades y los nombres de productos, marcas y salsas. Ejemplos de inventario: 20 Salsa Huichol, 6 Tapatío, 10 onzas. Puede incluir Sabritas, Cheetos, Doritos, Barcel, Tostitos, Galletas, Bebidas, Abarrotes y Dulces. No traduzcas los nombres propios.");
