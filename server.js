@@ -1280,6 +1280,54 @@ app.get("/clientes", async (req, res) => {
   }
 });
 
+
+// Catálogo público de solo lectura.
+// Usa la misma caché/sincronización de QuickBooks que la app completa,
+// pero solo expone los campos necesarios para mostrar productos y precios.
+app.get("/catalogo-publico", async (req, res) => {
+  try {
+    const cache = leerCacheProductos();
+    let data = cache?.data || null;
+    let updatedAt = Number(cache?.updatedAt || 0);
+
+    if (data) {
+      if (Date.now() - updatedAt >= PRODUCTS_CACHE_TTL_MS) {
+        void actualizarCacheProductos();
+      }
+    } else {
+      data = await actualizarCacheProductos();
+      updatedAt = Date.now();
+    }
+
+    if (!data) {
+      return res.status(503).json({
+        error: "El catálogo de QuickBooks todavía no está disponible"
+      });
+    }
+
+    const items = data?.QueryResponse?.Item || data?.productos || [];
+    const productos = items
+      .map((item) => ({
+        Id: item.Id || item.id || "",
+        Name: item.Name || item.nombre || item.FullyQualifiedName || "",
+        FullyQualifiedName: item.FullyQualifiedName || item.Name || item.nombre || "",
+        Description: item.Description || item.descripcion || "",
+        UnitPrice: Number(item.UnitPrice ?? item.precio ?? 0),
+        Sku: item.Sku || item.sku || ""
+      }))
+      .filter((item) => item.Name);
+
+    res.setHeader(
+      "X-Catalog-Updated",
+      new Date(updatedAt || Date.now()).toISOString()
+    );
+    res.json({ productos });
+  } catch (error) {
+    console.error("Error en catálogo público:", error.message);
+    res.status(500).json({ error: "No se pudo cargar el catálogo" });
+  }
+});
+
 app.get("/productos", async (req, res) => {
   try {
     const cache = leerCacheProductos();
@@ -2087,3 +2135,4 @@ const qboInventarioReconcileTimer = setInterval(() => {
 }, QBO_INVENTORY_RECONCILE_INTERVAL_MS);
 qboInventarioReconcileTimer.unref?.();
 void sincronizarFacturasQboRecientes();
+

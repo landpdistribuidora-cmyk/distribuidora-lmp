@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2948d8">
+  <title>Catálogo | Distribuidora L&amp;P</title>
+  <style>
+    :root {
+      --azul: #2948d8;
+      --azul-oscuro: #17245f;
+      --borde: #dfe4f2;
+      --fondo: #f6f8fc;
+      --texto: #172033;
+      --muted: #65708a;
+      --blanco: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--fondo);
+      color: var(--texto);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    header {
+      background: var(--blanco);
+      border-bottom: 1px solid var(--borde);
+      padding: 18px 24px 14px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .encabezado {
+      max-width: 1240px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .logo {
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #fff;
+    }
+    h1 {
+      margin: 0;
+      color: var(--azul-oscuro);
+      font-size: clamp(22px, 4vw, 34px);
+    }
+    .subtitulo {
+      color: var(--muted);
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    main {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 22px 18px 45px;
+    }
+    .barra {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    #buscar {
+      flex: 1 1 300px;
+      min-height: 46px;
+      padding: 0 16px;
+      border: 1px solid #cbd3e6;
+      border-radius: 12px;
+      font-size: 16px;
+      outline: none;
+      background: #fff;
+    }
+    #buscar:focus {
+      border-color: var(--azul);
+      box-shadow: 0 0 0 3px rgba(41, 72, 216, .12);
+    }
+    #estado {
+      color: var(--muted);
+      font-size: 13px;
+      min-height: 20px;
+    }
+    #categorias {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-bottom: 22px;
+    }
+    .categoria {
+      border: 2px solid var(--azul);
+      background: #fff;
+      color: var(--azul);
+      border-radius: 12px;
+      padding: 10px 17px;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .categoria.activa, .categoria:hover {
+      background: var(--azul);
+      color: #fff;
+    }
+    #productos {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+      gap: 18px;
+    }
+    .producto {
+      background: #fff;
+      border: 1px solid var(--borde);
+      border-radius: 16px;
+      padding: 16px;
+      min-height: 335px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      box-shadow: 0 3px 12px rgba(31, 48, 93, .06);
+    }
+    .producto img {
+      width: 100%;
+      height: 170px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #fff;
+      cursor: zoom-in;
+    }
+    .producto h2 {
+      font-size: 17px;
+      line-height: 1.18;
+      text-align: center;
+      margin: 14px 0 8px;
+      min-height: 42px;
+    }
+    .precio {
+      color: var(--azul);
+      font-size: 21px;
+      font-weight: 800;
+      text-align: center;
+      margin-top: auto;
+    }
+    .categoria-producto {
+      color: var(--muted);
+      text-align: center;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    #paginacion {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-top: 28px;
+    }
+    #paginacion button {
+      border: 1px solid var(--azul);
+      background: #fff;
+      color: var(--azul);
+      border-radius: 9px;
+      padding: 9px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #paginacion button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+    .vacio {
+      grid-column: 1 / -1;
+      background: #fff;
+      border: 1px dashed #b8c2d9;
+      border-radius: 14px;
+      padding: 40px 18px;
+      text-align: center;
+      color: var(--muted);
+    }
+    #visor {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(10, 18, 42, .82);
+      z-index: 20;
+      cursor: zoom-out;
+    }
+    #visor.abierto { display: flex; }
+    #visor img {
+      max-width: min(92vw, 720px);
+      max-height: 82vh;
+      object-fit: contain;
+      background: #fff;
+      border-radius: 12px;
+    }
+    @media (max-width: 560px) {
+      header { padding: 14px 14px 12px; }
+      main { padding: 16px 12px 35px; }
+      .logo { width: 56px; height: 56px; }
+      #productos {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 11px;
+      }
+      .producto {
+        padding: 10px;
+        min-height: 285px;
+        border-radius: 12px;
+      }
+      .producto img { height: 130px; }
+      .producto h2 { font-size: 14px; }
+      .precio { font-size: 18px; }
+      .categoria { padding: 8px 11px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="encabezado">
+      <img class="logo" src="images/logo-nuevo.jpg" alt="Distribuidora L&amp;P">
+      <div>
+        <h1>Catálogo de productos</h1>
+        <div class="subtitulo">Distribuidora L&amp;P</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="barra">
+      <input id="buscar" type="search" placeholder="Buscar por nombre, código o descripción">
+      <div id="estado">Cargando productos...</div>
+    </div>
+    <div id="categorias" aria-label="Categorías"></div>
+    <section id="productos" aria-live="polite"></section>
+    <div id="paginacion"></div>
+  </main>
+
+  <div id="visor" aria-label="Vista ampliada">
+    <img id="imagenGrande" alt="">
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var PER_PAGE = 24;
+      var estado = {
+        productos: [],
+        categoria: 'Todos',
+        pagina: 1,
+        categorias: [],
+        maestroCategorias: []
+      };
+
+      var $ = function (selector) {
+        return document.querySelector(selector);
+      };
+
+      function normalizar(valor) {
+        return String(valor || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\\u0300-\\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, ' ')
+          .trim();
+      }
+
+      function sinPrefijo(valor) {
+        return String(valor || '').replace(/^[^:]+:\\s*/, '').trim();
+      }
+
+      function claveImagen(valor) {
+        return normalizar(valor).replace(/\\s+/g, '-');
+      }
+
+      function leerJson(url, respaldo) {
+        return fetch(url, { cache: 'no-store' })
+          .then(function (respuesta) {
+            if (!respuesta.ok) throw new Error('No se pudo cargar ' + url);
+            return respuesta.json();
+          })
+          .catch(function () { return respaldo; });
+      }
+
+      function mapaCatalogoDesdeMaestro(maestro, imagenes) {
+        var mapa = {};
+        var mapaImagenes = imagenes && imagenes.imagenes ? imagenes.imagenes : imagenes;
+
+        (maestro.productos || []).forEach(function (entrada) {
+          var imagenPersistente = mapaImagenes &&
+            mapaImagenes[entrada.productoQuickBooksPrincipal];
+          if (imagenPersistente) entrada.imagen = imagenPersistente;
+
+          function agregar(clave) {
+            if (!clave) return;
+            mapa[normalizar(clave)] = entrada;
+            mapa[normalizar(sinPrefijo(clave))] = entrada;
+          }
+
+          agregar(entrada.productoQuickBooksPrincipal);
+          (entrada.productosQuickBooksEquivalentes || []).forEach(agregar);
+          agregar(entrada.nombreVisible);
+        });
+        return mapa;
+      }
+
+      function buscarEntrada(mapa, nombre, sku) {
+        return mapa[normalizar(nombre)] ||
+          mapa[normalizar(sinPrefijo(nombre))] ||
+          mapa[normalizar(sku)] ||
+          null;
+      }
+
+      function construirProducto(item, mapa, categoriasPersistentes) {
+        var id = item.Id || item.id || '';
+        var nombreQbo = item.Name || item.nombre || item.FullyQualifiedName || 'Producto';
+        var sku = item.Sku || item.sku || '';
+        var entrada = buscarEntrada(mapa, nombreQbo, sku);
+        var nombre = entrada && entrada.nombreVisible ? entrada.nombreVisible : nombreQbo;
+        var imagen = entrada && entrada.imagen ? entrada.imagen : '';
+        var mapaCategorias = categoriasPersistentes &&
+          categoriasPersistentes.categorias ? categoriasPersistentes.categorias : categoriasPersistentes;
+        var categoria = mapaCategorias && mapaCategorias[String(id)] ||
+          (entrada && entrada.categoria) ||
+          'Sin categoría';
+        var precio = Number(
+          item.UnitPrice == null
+            ? (item.precio == null ? 0 : item.precio)
+            : item.UnitPrice
+        );
+
+        if (!imagen) {
+          imagen = 'images/productos/' + claveImagen(nombreQbo) + '.jpg';
+        }
+
+        return {
+          id: id,
+          nombre: nombre,
+          descripcion: item.Description || item.descripcion || '',
+          sku: sku,
+          precio: Number.isFinite(precio) ? precio : 0,
+          categoria: categoria,
+          imagen: imagen
+        };
+      }
+
+      function cargarCategorias() {
+        var categorias = ['Todos'];
+        (estado.maestroCategorias || []).forEach(function (categoria) {
+          if (categoria && categorias.indexOf(categoria) === -1) {
+            categorias.push(categoria);
+          }
+        });
+        if (categorias.indexOf('Sin categoría') === -1) {
+          categorias.push('Sin categoría');
+        }
+
+        estado.categorias = categorias;
+        var contenedor = $('#categorias');
+        contenedor.innerHTML = '';
+
+        categorias.forEach(function (categoria) {
+          var boton = document.createElement('button');
+          boton.type = 'button';
+          boton.className = 'categoria' +
+            (categoria === estado.categoria ? ' activa' : '');
+          boton.textContent = categoria;
+          boton.addEventListener('click', function () {
+            estado.categoria = categoria;
+            estado.pagina = 1;
+            cargarCategorias();
+            mostrarProductos();
+          });
+          contenedor.appendChild(boton);
+        });
+      }
+
+      function productosFiltrados() {
+        var busqueda = normalizar($('#buscar').value);
+        return estado.productos.filter(function (producto) {
+          var coincideCategoria = estado.categoria === 'Todos' ||
+            producto.categoria === estado.categoria;
+          var texto = normalizar(
+            producto.nombre + ' ' + producto.descripcion + ' ' + producto.sku
+          );
+          return coincideCategoria &&
+            (!busqueda || texto.indexOf(busqueda) !== -1);
+        });
+      }
+
+      function mostrarProductos() {
+        var contenedor = $('#productos');
+        var lista = productosFiltrados();
+        var totalPaginas = Math.max(1, Math.ceil(lista.length / PER_PAGE));
+        if (estado.pagina > totalPaginas) estado.pagina = totalPaginas;
+
+        var inicio = (estado.pagina - 1) * PER_PAGE;
+        var visibles = lista.slice(inicio, inicio + PER_PAGE);
+        contenedor.innerHTML = '';
+
+        if (!visibles.length) {
+          var vacio = document.createElement('div');
+          vacio.className = 'vacio';
+          vacio.textContent = 'No encontramos productos con esa búsqueda.';
+          contenedor.appendChild(vacio);
+        } else {
+          visibles.forEach(function (producto) {
+            var tarjeta = document.createElement('article');
+            tarjeta.className = 'producto';
+
+            var imagen = document.createElement('img');
+            imagen.src = producto.imagen;
+            imagen.alt = producto.nombre;
+            imagen.loading = 'lazy';
+            imagen.addEventListener('error', function () {
+              if (imagen.src.indexOf('logo-nuevo.jpg') === -1) {
+                imagen.src = 'images/logo-nuevo.jpg';
+              }
+            });
+            imagen.addEventListener('click', function () {
+              $('#imagenGrande').src = producto.imagen;
+              $('#imagenGrande').alt = producto.nombre;
+              $('#visor').classList.add('abierto');
+            });
+
+            var titulo = document.createElement('h2');
+            titulo.textContent = producto.nombre;
+
+            var precio = document.createElement('div');
+            precio.className = 'precio';
+            precio.textContent = '$' + producto.precio.toFixed(2);
+
+            var categoria = document.createElement('div');
+            categoria.className = 'categoria-producto';
+            categoria.textContent = producto.categoria;
+
+            tarjeta.appendChild(imagen);
+            tarjeta.appendChild(titulo);
+            tarjeta.appendChild(precio);
+            tarjeta.appendChild(categoria);
+            contenedor.appendChild(tarjeta);
+          });
+        }
+
+        $('#estado').textContent = lista.length + ' producto' +
+          (lista.length === 1 ? '' : 's');
+        mostrarPaginacion(totalPaginas);
+      }
+
+      function mostrarPaginacion(totalPaginas) {
+        var contenedor = $('#paginacion');
+        contenedor.innerHTML = '';
+        if (totalPaginas <= 1) return;
+
+        var anterior = document.createElement('button');
+        anterior.type = 'button';
+        anterior.textContent = 'Anterior';
+        anterior.disabled = estado.pagina <= 1;
+        anterior.addEventListener('click', function () {
+          estado.pagina -= 1;
+          mostrarProductos();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        var pagina = document.createElement('span');
+        pagina.textContent = 'Página ' + estado.pagina + ' de ' + totalPaginas;
+
+        var siguiente = document.createElement('button');
+        siguiente.type = 'button';
+        siguiente.textContent = 'Siguiente';
+        siguiente.disabled = estado.pagina >= totalPaginas;
+        siguiente.addEventListener('click', function () {
+          estado.pagina += 1;
+          mostrarProductos();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        contenedor.appendChild(anterior);
+        contenedor.appendChild(pagina);
+        contenedor.appendChild(siguiente);
+      }
+
+      function cargarCatalogo() {
+        return Promise.all([
+          leerJson('/catalogo-publico', { productos: [] }),
+          leerJson('/catalogo_maestro_sistema.json', {
+            productos: [],
+            categorias: []
+          }),
+          leerJson('/api/imagenes-productos', {}),
+          leerJson('/api/categorias-productos', {})
+        ]).then(function (respuestas) {
+          var datosQbo = respuestas[0];
+          var maestro = respuestas[1];
+          var imagenes = respuestas[2] || {};
+          var categoriasPersistentes = respuestas[3] || {};
+          var mapa = mapaCatalogoDesdeMaestro(maestro, imagenes);
+
+          estado.maestroCategorias = maestro.categorias || [
+            'Abarrotes', 'Sabritas', 'Galletas', 'Dulces', 'Bebidas', 'Otros'
+          ];
+          estado.productos = (datosQbo.productos || [])
+            .map(function (item) {
+              return construirProducto(item, mapa, categoriasPersistentes);
+            })
+            .filter(function (producto) { return producto.nombre; });
+
+          cargarCategorias();
+          mostrarProductos();
+        }).catch(function () {
+          $('#estado').textContent = 'No se pudo cargar el catálogo.';
+          $('#productos').innerHTML =
+            '<div class="vacio">Intenta actualizar la página en unos segundos.</div>';
+        });
+      }
+
+      $('#buscar').addEventListener('input', function () {
+        estado.pagina = 1;
+        mostrarProductos();
+      });
+
+      $('#visor').addEventListener('click', function () {
+        $('#visor').classList.remove('abierto');
+      });
+
+      cargarCatalogo();
+      window.setInterval(cargarCatalogo, 60000);
+    }());
+  </script>
+</body>
+</html>
