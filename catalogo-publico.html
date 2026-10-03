@@ -22,34 +22,38 @@
       font-family: Arial, Helvetica, sans-serif;
     }
     header {
-      background: #fff;
+      background: linear-gradient(135deg, #007bff, #0056d6);
       border-bottom: 1px solid var(--borde);
-      padding: 18px 24px 14px;
-      position: sticky;
-      top: 0;
+      padding: 20px 18px 24px;
+      position: static;
       z-index: 10;
     }
     .encabezado {
       max-width: 1240px;
       margin: 0 auto;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 16px;
+      gap: 8px;
+      text-align: center;
     }
     .logo {
-      width: 150px;
-      height: 115px;
+      width: 80%;
+      max-width: 330px;
+      height: auto;
+      max-height: none;
       object-fit: contain;
-      border-radius: 10px;
+      border-radius: 0;
+      background: transparent;
     }
     h1 {
       margin: 0;
-      color: var(--azul-oscuro);
+      color: #fff;
       font-size: clamp(22px, 4vw, 34px);
     }
-    .subtitulo { color: var(--muted); margin-top: 5px; font-size: 14px; }
+    .subtitulo { color: #eaf2ff; margin-top: 2px; font-size: 15px; }
     .admin-button {
-      margin-left: auto;
+      margin: 8px auto 0;
       border: 1px solid var(--azul);
       background: #fff;
       color: var(--azul);
@@ -117,6 +121,7 @@
       flex-wrap: wrap;
       gap: 9px;
       margin-bottom: 22px;
+      position: static;
     }
     .categoria {
       border: 2px solid var(--azul);
@@ -293,9 +298,9 @@
     @media (max-width: 560px) {
       header { padding: 14px 14px 12px; }
       main { padding: 16px 12px 35px; }
-      .encabezado { align-items: flex-start; }
-      .logo { width: 115px; height: 90px; }
-      .admin-button { margin-left: 0; padding: 8px 10px; font-size: 12px; }
+      .encabezado { align-items: center; }
+      .logo { width: 92%; max-width: 270px; height: auto; }
+      .admin-button { margin: 8px auto 0; padding: 8px 10px; font-size: 12px; }
       #productos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
       .producto { padding: 10px; min-height: 320px; border-radius: 12px; }
       .producto img { height: 130px; }
