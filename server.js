@@ -352,6 +352,8 @@ app.use(express.static(__dirname));
 const AUTH_COOKIE = "landp_auth";
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
 const AUTH_SECRET = process.env.AUTH_SECRET || "";
+const CATALOG_AUTH_COOKIE = "landp_catalog_auth";
+const CATALOG_SESSION_DURATION_MS = 12 * 60 * 60 * 1000;
 
 function contrasenaRol(rol) {
   return {
@@ -359,6 +361,12 @@ function contrasenaRol(rol) {
     cliente: process.env.CLIENT_PASSWORD || "",
     jefe: process.env.ADMIN_PASSWORD || process.env.DEVELOPER_PASSWORD || "",
   }[rol] || "";
+}
+
+function contrasenaCatalogo() {
+  return process.env.CATALOG_PASSWORD ||
+    contrasenaRol("cliente") ||
+    contrasenaRol("jefe");
 }
 
 function compararSecreto(entrada, esperado) {
@@ -375,6 +383,13 @@ function firmaSesion(valor) {
 function crearSesion(rol) {
   const payload = Buffer.from(
     JSON.stringify({ rol, exp: Date.now() + SESSION_DURATION_MS })
+  ).toString("base64url");
+  return `${payload}.${firmaSesion(payload)}`;
+}
+
+function crearCatalogoSesion() {
+  const payload = Buffer.from(
+    JSON.stringify({ exp: Date.now() + CATALOG_SESSION_DURATION_MS })
   ).toString("base64url");
   return `${payload}.${firmaSesion(payload)}`;
 }
@@ -403,6 +418,22 @@ function leerSesion(req) {
       return null;
     }
     return sesion;
+  } catch {
+    return null;
+  }
+}
+
+function leerCatalogoSesion(req) {
+  if (!AUTH_SECRET) return null;
+  const token = cookies(req)[CATALOG_AUTH_COOKIE];
+  const partes = String(token || "").split(".");
+  const payload = partes[0];
+  const firma = partes[1];
+  if (!payload || !firma || firma !== firmaSesion(payload)) return null;
+
+  try {
+    const sesion = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return Number(sesion.exp) >= Date.now() ? sesion : null;
   } catch {
     return null;
   }
@@ -438,6 +469,21 @@ function cookieSesion(res, valor, maxAge) {
   );
 }
 
+function cookieCatalogoSesion(res, valor, maxAge) {
+  const seguro = REDIRECT_URI.startsWith("https://") || process.env.NODE_ENV === "production";
+  res.setHeader(
+    "Set-Cookie",
+    `${CATALOG_AUTH_COOKIE}=${encodeURIComponent(valor)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${seguro ? "; Secure" : ""}`
+  );
+}
+
+function requiereCatalogoAdmin(req, res, next) {
+  if (!leerCatalogoSesion(req)) {
+    return res.status(401).json({ error: "Inicia sesión para administrar el catálogo" });
+  }
+  next();
+}
+
 app.post("/login", (req, res) => {
   const rol = String(req.body?.rol || "").trim().toLowerCase();
   const contrasena = String(req.body?.contrasena || "");
@@ -452,6 +498,31 @@ app.post("/login", (req, res) => {
 
   cookieSesion(res, crearSesion(rol), Math.floor(SESSION_DURATION_MS / 1000));
   res.json({ ok: true, rol });
+});
+
+app.post("/catalogo-admin/login", (req, res) => {
+  const contrasena = String(req.body?.contrasena || "");
+  if (!AUTH_SECRET || !contrasenaCatalogo()) {
+    return res.status(503).json({ error: "No está configurada la contraseña del catálogo" });
+  }
+  if (!compararSecreto(contrasena, contrasenaCatalogo())) {
+    return res.status(401).json({ error: "Contraseña incorrecta" });
+  }
+  cookieCatalogoSesion(
+    res,
+    crearCatalogoSesion(),
+    Math.floor(CATALOG_SESSION_DURATION_MS / 1000)
+  );
+  res.json({ ok: true });
+});
+
+app.get("/catalogo-admin/session", (req, res) => {
+  res.json({ autenticado: !!leerCatalogoSesion(req) });
+});
+
+app.post("/catalogo-admin/logout", (req, res) => {
+  cookieCatalogoSesion(res, "", 0);
+  res.json({ ok: true });
 });
 
 app.get("/session", (req, res) => {
@@ -535,6 +606,93 @@ app.get("/api/categorias-productos", (req, res) => {
 app.get("/api/subfiltros-productos", (req, res) => {
   res.json(leerMapaSubfiltros());
 });
+
+app.get("/catalogo-admin/imagenes", requiereCatalogoAdmin, (req, res) => {
+  res.json(leerMapaImagenes());
+});
+
+app.get("/catalogo-admin/categorias", requiereCatalogoAdmin, (req, res) => {
+  res.json(leerMapaCategorias());
+});
+
+app.post("/catalogo-admin/productos/:id/categoria", requiereCatalogoAdmin, (req, res) => {
+  const id = String(req.params.id || "").trim();
+  const categoria = String(req.body?.categoria || "").trim();
+
+  if (!id) return res.status(400).json({ error: "Falta el ID del producto" });
+  if (!categoria || categoria.length > 80) {
+    return res.status(400).json({ error: "Selecciona una categoría válida" });
+  }
+
+  const mapa = leerMapaCategorias();
+  mapa[id] = categoria;
+  guardarMapaCategorias(mapa);
+  res.json({ ok: true, id, categoria });
+});
+
+app.post(
+  "/catalogo-admin/productos/:id/imagen",
+  requiereCatalogoAdmin,
+  upload.single("imagen"),
+  (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No se recibió ninguna imagen" });
+      }
+
+      const id = String(req.params.id || "").trim();
+      if (!id) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: "Falta el ID del producto" });
+      }
+
+      let catalogo = { productos: [] };
+      try {
+        catalogo = JSON.parse(
+          fs.readFileSync(path.join(__dirname, "catalogo_maestro_sistema.json"), "utf8")
+        );
+      } catch {}
+
+      const producto = (catalogo.productos || []).find((p) => {
+        const principal = String(p.productoQuickBooksPrincipal || "");
+        const equivalentes = p.productosQuickBooksEquivalentes || [];
+        return (
+          String(p.Id || p.id || "") === id ||
+          principal === id ||
+          equivalentes.map(String).includes(id)
+        );
+      });
+
+      // Los productos nuevos de QuickBooks todavía pueden no existir en el
+      // maestro; en ese caso se guarda la imagen usando su Item ID.
+      const claveProducto =
+        String(producto?.productoQuickBooksPrincipal || "").trim() || id;
+      const rutaImagen = `/images/productos/${req.file.filename}`;
+      const mapaImagenes = leerMapaImagenes();
+      const rutaAnterior = mapaImagenes[claveProducto];
+
+      mapaImagenes[claveProducto] = rutaImagen;
+      guardarMapaImagenes(mapaImagenes);
+
+      if (rutaAnterior && rutaAnterior !== rutaImagen) {
+        const archivoAnterior = path.join(
+          PERSISTENT_IMAGES_DIR,
+          path.basename(rutaAnterior)
+        );
+        if (fs.existsSync(archivoAnterior)) {
+          fs.unlink(archivoAnterior, () => {});
+        }
+      }
+
+      res.json({ ok: true, imagen: rutaImagen, clave: claveProducto });
+    } catch (error) {
+      console.error("Error guardando imagen del catálogo:", error);
+      if (req.file?.path) fs.unlink(req.file.path, () => {});
+      res.status(500).json({ error: "No se pudo guardar la imagen" });
+    }
+  }
+);
+
 app.post("/api/productos/:id/categoria", requiereRol("jefe", "empleado"), (req, res) => {
   const id = String(req.params.id || "").trim();
   const categoria = String(req.body?.categoria || "").trim();
@@ -2135,4 +2293,3 @@ const qboInventarioReconcileTimer = setInterval(() => {
 }, QBO_INVENTORY_RECONCILE_INTERVAL_MS);
 qboInventarioReconcileTimer.unref?.();
 void sincronizarFacturasQboRecientes();
-

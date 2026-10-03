@@ -13,7 +13,6 @@
       --fondo: #f6f8fc;
       --texto: #172033;
       --muted: #65708a;
-      --blanco: #ffffff;
     }
     * { box-sizing: border-box; }
     body {
@@ -23,7 +22,7 @@
       font-family: Arial, Helvetica, sans-serif;
     }
     header {
-      background: var(--blanco);
+      background: #fff;
       border-bottom: 1px solid var(--borde);
       padding: 18px 24px 14px;
       position: sticky;
@@ -42,18 +41,25 @@
       height: 70px;
       object-fit: contain;
       border-radius: 10px;
-      background: #fff;
     }
     h1 {
       margin: 0;
       color: var(--azul-oscuro);
       font-size: clamp(22px, 4vw, 34px);
     }
-    .subtitulo {
-      color: var(--muted);
-      margin-top: 5px;
-      font-size: 14px;
+    .subtitulo { color: var(--muted); margin-top: 5px; font-size: 14px; }
+    .admin-button {
+      margin-left: auto;
+      border: 1px solid var(--azul);
+      background: #fff;
+      color: var(--azul);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
     }
+    .admin-button:hover { background: var(--azul); color: #fff; }
     main {
       max-width: 1240px;
       margin: 0 auto;
@@ -80,11 +86,32 @@
       border-color: var(--azul);
       box-shadow: 0 0 0 3px rgba(41, 72, 216, .12);
     }
-    #estado {
-      color: var(--muted);
-      font-size: 13px;
-      min-height: 20px;
+    #estado { color: var(--muted); font-size: 13px; min-height: 20px; }
+    #adminPanel {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: #eef2ff;
+      border: 1px solid #b7c4ff;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      color: #23347f;
     }
+    #adminPanel.visible { display: flex; }
+    #adminPanel strong { color: var(--azul-oscuro); }
+    .admin-help { flex: 1 1 300px; font-size: 13px; }
+    #salirAdmin {
+      border: 1px solid #6472b4;
+      background: #fff;
+      color: #23347f;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    #mensajeAdmin { width: 100%; color: #1c6b3c; font-size: 13px; min-height: 16px; }
     #categorias {
       display: flex;
       flex-wrap: wrap;
@@ -101,10 +128,7 @@
       font-size: 15px;
       cursor: pointer;
     }
-    .categoria.activa, .categoria:hover {
-      background: var(--azul);
-      color: #fff;
-    }
+    .categoria.activa, .categoria:hover { background: var(--azul); color: #fff; }
     #productos {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
@@ -120,6 +144,13 @@
       flex-direction: column;
       align-items: stretch;
       box-shadow: 0 3px 12px rgba(31, 48, 93, .06);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .producto.admin-editable { border: 2px dashed #8696ea; }
+    .producto.arrastrando {
+      border-color: #1b8e52;
+      box-shadow: 0 0 0 4px rgba(27, 142, 82, .16);
+      background: #f1fff6;
     }
     .producto img {
       width: 100%;
@@ -129,6 +160,7 @@
       background: #fff;
       cursor: zoom-in;
     }
+    .producto.admin-editable img { cursor: copy; }
     .producto h2 {
       font-size: 17px;
       line-height: 1.18;
@@ -149,6 +181,22 @@
       font-size: 12px;
       margin-top: 8px;
     }
+    .categoria-editor {
+      width: 100%;
+      margin-top: 10px;
+      border: 1px solid #8e76dc;
+      border-radius: 9px;
+      padding: 8px 9px;
+      background: #fbf9ff;
+      color: #222;
+      font-size: 14px;
+    }
+    .admin-hint {
+      color: #53639f;
+      text-align: center;
+      font-size: 11px;
+      margin-top: 7px;
+    }
     #paginacion {
       display: flex;
       justify-content: center;
@@ -165,10 +213,7 @@
       font-weight: 700;
       cursor: pointer;
     }
-    #paginacion button:disabled {
-      opacity: .45;
-      cursor: not-allowed;
-    }
+    #paginacion button:disabled { opacity: .45; cursor: not-allowed; }
     .vacio {
       grid-column: 1 / -1;
       background: #fff;
@@ -178,15 +223,17 @@
       text-align: center;
       color: var(--muted);
     }
-    #visor {
+    #visor, #loginModal {
       position: fixed;
       inset: 0;
-      display: none;
       align-items: center;
       justify-content: center;
       padding: 20px;
-      background: rgba(10, 18, 42, .82);
       z-index: 20;
+    }
+    #visor {
+      display: none;
+      background: rgba(10, 18, 42, .82);
       cursor: zoom-out;
     }
     #visor.abierto { display: flex; }
@@ -197,23 +244,65 @@
       background: #fff;
       border-radius: 12px;
     }
+    #loginModal {
+      display: none;
+      background: rgba(10, 18, 42, .62);
+      z-index: 30;
+    }
+    #loginModal.abierto { display: flex; }
+    .login-card {
+      width: min(410px, 100%);
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, .28);
+      position: relative;
+    }
+    .login-card h2 { margin: 0 0 8px; color: var(--azul-oscuro); }
+    .login-card p { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+    #adminPassword {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid #cbd3e6;
+      border-radius: 9px;
+      padding: 0 12px;
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+    #entrarAdmin {
+      width: 100%;
+      min-height: 44px;
+      border: 0;
+      border-radius: 9px;
+      background: var(--azul);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #cerrarLogin {
+      position: absolute;
+      right: 12px;
+      top: 10px;
+      border: 0;
+      background: transparent;
+      color: #66708a;
+      font-size: 25px;
+      cursor: pointer;
+    }
+    #loginError { color: #b3261e; font-size: 13px; margin-top: 10px; min-height: 17px; }
     @media (max-width: 560px) {
       header { padding: 14px 14px 12px; }
       main { padding: 16px 12px 35px; }
+      .encabezado { align-items: flex-start; }
       .logo { width: 56px; height: 56px; }
-      #productos {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 11px;
-      }
-      .producto {
-        padding: 10px;
-        min-height: 285px;
-        border-radius: 12px;
-      }
+      .admin-button { margin-left: 0; padding: 8px 10px; font-size: 12px; }
+      #productos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+      .producto { padding: 10px; min-height: 320px; border-radius: 12px; }
       .producto img { height: 130px; }
       .producto h2 { font-size: 14px; }
       .precio { font-size: 18px; }
       .categoria { padding: 8px 11px; font-size: 13px; }
+      .categoria-editor { font-size: 12px; padding: 7px 5px; }
     }
   </style>
 </head>
@@ -225,10 +314,18 @@
         <h1>Catálogo de productos</h1>
         <div class="subtitulo">Distribuidora L&amp;P</div>
       </div>
+      <button id="adminButton" class="admin-button" type="button">Administrar catálogo</button>
     </div>
   </header>
 
   <main>
+    <div id="adminPanel">
+      <strong>Modo administración</strong>
+      <span class="admin-help">Selecciona la categoría o arrastra una imagen directamente sobre la tarjeta del producto.</span>
+      <button id="salirAdmin" type="button">Salir</button>
+      <div id="mensajeAdmin"></div>
+    </div>
+
     <div class="barra">
       <input id="buscar" type="search" placeholder="Buscar por nombre, código o descripción">
       <div id="estado">Cargando productos...</div>
@@ -242,22 +339,40 @@
     <img id="imagenGrande" alt="">
   </div>
 
+  <div id="loginModal" role="dialog" aria-modal="true" aria-labelledby="tituloLogin">
+    <div class="login-card">
+      <button id="cerrarLogin" type="button" aria-label="Cerrar">×</button>
+      <h2 id="tituloLogin">Administrar catálogo</h2>
+      <p>Escribe la contraseña autorizada para organizar productos y asignar imágenes.</p>
+      <form id="loginForm">
+        <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Contraseña">
+        <button id="entrarAdmin" type="submit">Entrar</button>
+      </form>
+      <div id="loginError"></div>
+    </div>
+  </div>
+
   <script>
     (function () {
       'use strict';
 
       var PER_PAGE = 24;
+      var CATEGORIAS_BASE = [
+        'Abarrotes', 'Bebidas', 'Sabritas', 'Galletas', 'Dulces', 'Otros',
+        'Sin categoría'
+      ];
       var estado = {
         productos: [],
         categoria: 'Todos',
         pagina: 1,
         categorias: [],
-        maestroCategorias: []
+        maestroCategorias: [],
+        admin: false,
+        imagenes: {},
+        categoriasPersistentes: {}
       };
 
-      var $ = function (selector) {
-        return document.querySelector(selector);
-      };
+      var $ = function (selector) { return document.querySelector(selector); };
 
       function normalizar(valor) {
         return String(valor || '')
@@ -285,13 +400,18 @@
           .catch(function () { return respaldo; });
       }
 
+      function mapaDirecto(valor) {
+        if (valor && valor.imagenes) return valor.imagenes;
+        if (valor && valor.categorias) return valor.categorias;
+        return valor || {};
+      }
+
       function mapaCatalogoDesdeMaestro(maestro, imagenes) {
         var mapa = {};
-        var mapaImagenes = imagenes && imagenes.imagenes ? imagenes.imagenes : imagenes;
+        var mapaImagenes = mapaDirecto(imagenes);
 
         (maestro.productos || []).forEach(function (entrada) {
-          var imagenPersistente = mapaImagenes &&
-            mapaImagenes[entrada.productoQuickBooksPrincipal];
+          var imagenPersistente = mapaImagenes[entrada.productoQuickBooksPrincipal];
           if (imagenPersistente) entrada.imagen = imagenPersistente;
 
           function agregar(clave) {
@@ -314,16 +434,20 @@
           null;
       }
 
-      function construirProducto(item, mapa, categoriasPersistentes) {
+      function construirProducto(item, mapa, categoriasPersistentes, imagenesPersistentes) {
         var id = item.Id || item.id || '';
         var nombreQbo = item.Name || item.nombre || item.FullyQualifiedName || 'Producto';
         var sku = item.Sku || item.sku || '';
         var entrada = buscarEntrada(mapa, nombreQbo, sku);
+        var mapaCategorias = mapaDirecto(categoriasPersistentes);
+        var mapaImagenes = mapaDirecto(imagenesPersistentes);
         var nombre = entrada && entrada.nombreVisible ? entrada.nombreVisible : nombreQbo;
-        var imagen = entrada && entrada.imagen ? entrada.imagen : '';
-        var mapaCategorias = categoriasPersistentes &&
-          categoriasPersistentes.categorias ? categoriasPersistentes.categorias : categoriasPersistentes;
-        var categoria = mapaCategorias && mapaCategorias[String(id)] ||
+        var imagen = mapaImagenes[String(id)] ||
+          mapaImagenes[nombreQbo] ||
+          mapaImagenes[sku] ||
+          (entrada && entrada.imagen) ||
+          '';
+        var categoria = mapaCategorias[String(id)] ||
           (entrada && entrada.categoria) ||
           'Sin categoría';
         var precio = Number(
@@ -332,9 +456,7 @@
             : item.UnitPrice
         );
 
-        if (!imagen) {
-          imagen = 'images/productos/' + claveImagen(nombreQbo) + '.jpg';
-        }
+        if (!imagen) imagen = 'images/productos/' + claveImagen(nombreQbo) + '.jpg';
 
         return {
           id: id,
@@ -347,16 +469,22 @@
         };
       }
 
+      function mostrarMensajeAdmin(mensaje, error) {
+        var elemento = $('#mensajeAdmin');
+        elemento.textContent = mensaje || '';
+        elemento.style.color = error ? '#b3261e' : '#1c6b3c';
+      }
+
       function cargarCategorias() {
+        var mapaCategorias = mapaDirecto(estado.categoriasPersistentes);
         var categorias = ['Todos'];
-        (estado.maestroCategorias || []).forEach(function (categoria) {
-          if (categoria && categorias.indexOf(categoria) === -1) {
-            categorias.push(categoria);
-          }
+        var disponibles = (estado.maestroCategorias || []).concat(
+          Object.keys(mapaCategorias).map(function (id) { return mapaCategorias[id]; })
+        );
+
+        CATEGORIAS_BASE.concat(disponibles).forEach(function (categoria) {
+          if (categoria && categorias.indexOf(categoria) === -1) categorias.push(categoria);
         });
-        if (categorias.indexOf('Sin categoría') === -1) {
-          categorias.push('Sin categoría');
-        }
 
         estado.categorias = categorias;
         var contenedor = $('#categorias');
@@ -391,6 +519,123 @@
         });
       }
 
+      function guardarCategoria(producto, categoria, selector) {
+        selector.disabled = true;
+        fetch('/catalogo-admin/productos/' + encodeURIComponent(producto.id) + '/categoria', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ categoria: categoria })
+        })
+          .then(function (respuesta) {
+            return respuesta.json().then(function (datos) {
+              if (!respuesta.ok) throw new Error(datos.error || 'No se pudo guardar');
+              return datos;
+            });
+          })
+          .then(function (datos) {
+            producto.categoria = datos.categoria;
+            estado.categoriasPersistentes[String(producto.id)] = datos.categoria;
+            mostrarMensajeAdmin('Categoría guardada correctamente.');
+            cargarCategorias();
+            mostrarProductos();
+          })
+          .catch(function (error) {
+            selector.value = producto.categoria;
+            selector.disabled = false;
+            mostrarMensajeAdmin(error.message, true);
+          });
+      }
+
+      function guardarImagen(producto, archivo, imagen, tarjeta) {
+        if (!archivo || !archivo.type || archivo.type.indexOf('image/') !== 0) {
+          mostrarMensajeAdmin('Selecciona un archivo de imagen válido.', true);
+          return;
+        }
+
+        var datos = new FormData();
+        datos.append('imagen', archivo);
+        tarjeta.classList.remove('arrastrando');
+        mostrarMensajeAdmin('Guardando imagen...');
+
+        fetch('/catalogo-admin/productos/' + encodeURIComponent(producto.id) + '/imagen', {
+          method: 'POST',
+          body: datos
+        })
+          .then(function (respuesta) {
+            return respuesta.json().then(function (resultado) {
+              if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo guardar');
+              return resultado;
+            });
+          })
+          .then(function (resultado) {
+            producto.imagen = resultado.imagen + '?actualizada=' + Date.now();
+            imagen.src = producto.imagen;
+            estado.imagenes[resultado.clave || String(producto.id)] = resultado.imagen;
+            mostrarMensajeAdmin('Imagen guardada correctamente.');
+          })
+          .catch(function (error) {
+            mostrarMensajeAdmin(error.message, true);
+          });
+      }
+
+      function prepararEdicion(tarjeta, producto, imagen) {
+        if (!estado.admin) return;
+
+        tarjeta.classList.add('admin-editable');
+        tarjeta.addEventListener('dragover', function (evento) {
+          evento.preventDefault();
+          tarjeta.classList.add('arrastrando');
+        });
+        tarjeta.addEventListener('dragleave', function () {
+          tarjeta.classList.remove('arrastrando');
+        });
+        tarjeta.addEventListener('drop', function (evento) {
+          evento.preventDefault();
+          var archivo = evento.dataTransfer && evento.dataTransfer.files &&
+            evento.dataTransfer.files[0];
+          guardarImagen(producto, archivo, imagen, tarjeta);
+        });
+
+        var selector = document.createElement('select');
+        selector.className = 'categoria-editor';
+        estado.categorias.filter(function (categoria) {
+          return categoria !== 'Todos';
+        }).forEach(function (categoria) {
+          var opcion = document.createElement('option');
+          opcion.value = categoria;
+          opcion.textContent = categoria;
+          selector.appendChild(opcion);
+        });
+        selector.value = producto.categoria;
+        selector.addEventListener('click', function (evento) {
+          evento.stopPropagation();
+        });
+        selector.addEventListener('change', function () {
+          guardarCategoria(producto, selector.value, selector);
+        });
+
+        var entrada = document.createElement('input');
+        entrada.type = 'file';
+        entrada.accept = 'image/*';
+        entrada.hidden = true;
+        entrada.addEventListener('change', function () {
+          guardarImagen(producto, entrada.files[0], imagen, tarjeta);
+          entrada.value = '';
+        });
+
+        imagen.addEventListener('click', function (evento) {
+          evento.stopPropagation();
+          entrada.click();
+        });
+
+        var pista = document.createElement('div');
+        pista.className = 'admin-hint';
+        pista.textContent = 'Arrastra una imagen aquí o haz clic en la imagen';
+        tarjeta.appendChild(selector);
+        tarjeta.appendChild(pista);
+        tarjeta.appendChild(entrada);
+      }
+
       function mostrarProductos() {
         var contenedor = $('#productos');
         var lista = productosFiltrados();
@@ -420,11 +665,14 @@
                 imagen.src = 'images/logo-nuevo.jpg';
               }
             });
-            imagen.addEventListener('click', function () {
-              $('#imagenGrande').src = producto.imagen;
-              $('#imagenGrande').alt = producto.nombre;
-              $('#visor').classList.add('abierto');
-            });
+
+            if (!estado.admin) {
+              imagen.addEventListener('click', function () {
+                $('#imagenGrande').src = producto.imagen;
+                $('#imagenGrande').alt = producto.nombre;
+                $('#visor').classList.add('abierto');
+              });
+            }
 
             var titulo = document.createElement('h2');
             titulo.textContent = producto.nombre;
@@ -441,6 +689,7 @@
             tarjeta.appendChild(titulo);
             tarjeta.appendChild(precio);
             tarjeta.appendChild(categoria);
+            prepararEdicion(tarjeta, producto, imagen);
             contenedor.appendChild(tarjeta);
           });
         }
@@ -484,27 +733,30 @@
       }
 
       function cargarCatalogo() {
+        var imagenesUrl = estado.admin ? '/catalogo-admin/imagenes' : null;
+        var categoriasUrl = estado.admin ? '/catalogo-admin/categorias' : null;
+
         return Promise.all([
           leerJson('/catalogo-publico', { productos: [] }),
-          leerJson('/catalogo_maestro_sistema.json', {
-            productos: [],
-            categorias: []
-          }),
-          leerJson('/api/imagenes-productos', {}),
-          leerJson('/api/categorias-productos', {})
+          leerJson('/catalogo_maestro_sistema.json', { productos: [], categorias: [] }),
+          imagenesUrl ? leerJson(imagenesUrl, {}) : Promise.resolve({}),
+          categoriasUrl ? leerJson(categoriasUrl, {}) : Promise.resolve({})
         ]).then(function (respuestas) {
           var datosQbo = respuestas[0];
           var maestro = respuestas[1];
-          var imagenes = respuestas[2] || {};
-          var categoriasPersistentes = respuestas[3] || {};
-          var mapa = mapaCatalogoDesdeMaestro(maestro, imagenes);
+          estado.imagenes = respuestas[2] || {};
+          estado.categoriasPersistentes = respuestas[3] || {};
+          var mapa = mapaCatalogoDesdeMaestro(maestro, estado.imagenes);
 
-          estado.maestroCategorias = maestro.categorias || [
-            'Abarrotes', 'Sabritas', 'Galletas', 'Dulces', 'Bebidas', 'Otros'
-          ];
+          estado.maestroCategorias = (maestro.categorias || []).concat(CATEGORIAS_BASE);
           estado.productos = (datosQbo.productos || [])
             .map(function (item) {
-              return construirProducto(item, mapa, categoriasPersistentes);
+              return construirProducto(
+                item,
+                mapa,
+                estado.categoriasPersistentes,
+                estado.imagenes
+              );
             })
             .filter(function (producto) { return producto.nombre; });
 
@@ -517,6 +769,30 @@
         });
       }
 
+      function actualizarInterfazAdmin() {
+        $('#adminPanel').classList.toggle('visible', estado.admin);
+        $('#adminButton').style.display = estado.admin ? 'none' : '';
+        mostrarMensajeAdmin('');
+      }
+
+      function abrirLogin() {
+        $('#loginError').textContent = '';
+        $('#adminPassword').value = '';
+        $('#loginModal').classList.add('abierto');
+        window.setTimeout(function () { $('#adminPassword').focus(); }, 50);
+      }
+
+      function cerrarLogin() {
+        $('#loginModal').classList.remove('abierto');
+      }
+
+      function activarAdmin() {
+        estado.admin = true;
+        cerrarLogin();
+        actualizarInterfazAdmin();
+        cargarCatalogo();
+      }
+
       $('#buscar').addEventListener('input', function () {
         estado.pagina = 1;
         mostrarProductos();
@@ -526,7 +802,50 @@
         $('#visor').classList.remove('abierto');
       });
 
-      cargarCatalogo();
+      $('#adminButton').addEventListener('click', abrirLogin);
+      $('#cerrarLogin').addEventListener('click', cerrarLogin);
+      $('#loginModal').addEventListener('click', function (evento) {
+        if (evento.target === $('#loginModal')) cerrarLogin();
+      });
+
+      $('#loginForm').addEventListener('submit', function (evento) {
+        evento.preventDefault();
+        $('#loginError').textContent = 'Comprobando...';
+        fetch('/catalogo-admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contrasena: $('#adminPassword').value })
+        })
+          .then(function (respuesta) {
+            return respuesta.json().then(function (datos) {
+              if (!respuesta.ok) throw new Error(datos.error || 'No se pudo iniciar sesión');
+              return datos;
+            });
+          })
+          .then(function () { activarAdmin(); })
+          .catch(function (error) { $('#loginError').textContent = error.message; });
+      });
+
+      $('#salirAdmin').addEventListener('click', function () {
+        fetch('/catalogo-admin/logout', { method: 'POST' })
+          .finally(function () {
+            estado.admin = false;
+            actualizarInterfazAdmin();
+            cargarCatalogo();
+          });
+      });
+
+      fetch('/catalogo-admin/session', { cache: 'no-store' })
+        .then(function (respuesta) {
+          return respuesta.ok ? respuesta.json() : { autenticado: false };
+        })
+        .then(function (sesion) {
+          estado.admin = !!sesion.autenticado;
+          actualizarInterfazAdmin();
+          cargarCatalogo();
+        })
+        .catch(function () { cargarCatalogo(); });
+
       window.setInterval(cargarCatalogo, 60000);
     }());
   </script>
