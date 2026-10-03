@@ -1439,9 +1439,98 @@ app.get("/clientes", async (req, res) => {
 });
 
 
+function normalizarClaveCatalogoPublico(valor) {
+  return String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function rutaImagenCatalogoPublica(valor) {
+  const ruta = String(valor || "").trim();
+  if (!ruta) return "";
+  if (/^https?:\/\//i.test(ruta) || ruta.startsWith("/")) return ruta;
+  return `/${ruta.replace(/^\.\//, "")}`;
+}
+
+function leerMaestroCatalogoPublico() {
+  try {
+    const archivo = path.join(__dirname, "catalogo_maestro_sistema.json");
+    return JSON.parse(fs.readFileSync(archivo, "utf8"));
+  } catch (error) {
+    console.error("No se pudo leer el maestro del catálogo público:", error.message);
+    return { productos: [] };
+  }
+}
+
+function crearIndiceCatalogoPublico(maestro) {
+  const porCodigo = new Map();
+  const porNombre = new Map();
+
+  function agregarUnico(indice, clave, entrada) {
+    const normalizada = normalizarClaveCatalogoPublico(clave);
+    if (!normalizada) return;
+    if (!indice.has(normalizada)) {
+      indice.set(normalizada, entrada);
+    } else if (indice.get(normalizada) !== entrada) {
+      // Una clave ambigua no se usa: nunca se debe asignar la foto de otro
+      // producto solo porque comparte una palabra o presentación.
+      indice.set(normalizada, null);
+    }
+  }
+
+  for (const entrada of maestro?.productos || []) {
+    const claves = [
+      entrada.productoQuickBooksPrincipal,
+      ...(Array.isArray(entrada.productosQuickBooksEquivalentes)
+        ? entrada.productosQuickBooksEquivalentes
+        : []),
+    ];
+    claves.forEach((clave) => agregarUnico(porCodigo, clave, entrada));
+    agregarUnico(porNombre, entrada.nombreVisible, entrada);
+  }
+
+  return { porCodigo, porNombre };
+}
+
+function buscarEntradaCatalogoPublico(item, indice) {
+  const nombre = item.Name || item.nombre || item.FullyQualifiedName || "";
+  const sku = item.Sku || item.sku || "";
+  const prefijo = String(nombre).split(":")[0].trim();
+  const claves = [sku, prefijo, nombre, sinPrefijoQuickBooks(nombre)];
+
+  for (const clave of claves) {
+    const entrada = indice.porCodigo.get(normalizarClaveCatalogoPublico(clave));
+    if (entrada) return entrada;
+  }
+
+  const porNombre = indice.porNombre.get(normalizarClaveCatalogoPublico(nombre));
+  return porNombre || null;
+}
+
+function buscarValorMapaCatalogoPublico(mapa, item, entrada) {
+  const claves = [
+    item.Id,
+    item.id,
+    entrada?.productoQuickBooksPrincipal,
+    item.Sku,
+    item.sku,
+    item.Name,
+  ].filter(Boolean);
+
+  for (const clave of claves) {
+    const valor = mapa?.[String(clave)];
+    if (valor) return valor;
+  }
+  return "";
+}
+
 // Catálogo público de solo lectura.
 // Usa la misma caché/sincronización de QuickBooks que la app completa,
-// pero solo expone los campos necesarios para mostrar productos y precios.
+// pero entrega también la relación producto-imagen por código/ID. Esto evita
+// que una imagen dependa de la posición de la tarjeta o de un nombre parecido.
 app.get("/catalogo-publico", async (req, res) => {
   try {
     const cache = leerCacheProductos();
@@ -1464,15 +1553,45 @@ app.get("/catalogo-publico", async (req, res) => {
     }
 
     const items = data?.QueryResponse?.Item || data?.productos || [];
+    const maestro = leerMaestroCatalogoPublico();
+    const indice = crearIndiceCatalogoPublico(maestro);
+    const mapaImagenes = leerMapaImagenes();
+    const mapaCategorias = leerMapaCategorias();
     const productos = items
-      .map((item) => ({
-        Id: item.Id || item.id || "",
-        Name: item.Name || item.nombre || item.FullyQualifiedName || "",
-        FullyQualifiedName: item.FullyQualifiedName || item.Name || item.nombre || "",
-        Description: item.Description || item.descripcion || "",
-        UnitPrice: Number(item.UnitPrice ?? item.precio ?? 0),
-        Sku: item.Sku || item.sku || ""
-      }))
+      .map((item) => {
+        const entrada = buscarEntradaCatalogoPublico(item, indice);
+        const id = item.Id || item.id || "";
+        const nombreQbo = item.Name || item.nombre || item.FullyQualifiedName || "";
+        const imagenGuardada = buscarValorMapaCatalogoPublico(
+          mapaImagenes,
+          item,
+          entrada
+        );
+        const categoriaGuardada = buscarValorMapaCatalogoPublico(
+          mapaCategorias,
+          item,
+          entrada
+        );
+
+        return {
+          Id: id,
+          Name: nombreQbo,
+          FullyQualifiedName: item.FullyQualifiedName || nombreQbo,
+          Description: item.Description || item.descripcion || "",
+          UnitPrice: Number(item.UnitPrice ?? item.precio ?? 0),
+          Sku: item.Sku || item.sku || "",
+          nombreVisible: entrada?.nombreVisible || nombreQbo,
+          imagen:
+            rutaImagenCatalogoPublica(imagenGuardada) ||
+            rutaImagenCatalogoPublica(entrada?.imagen),
+          categoria: categoriaGuardada || entrada?.categoria || "Sin categoría",
+          claveCatalogo:
+            entrada?.productoQuickBooksPrincipal ||
+            item.Sku ||
+            item.sku ||
+            id,
+        };
+      })
       .filter((item) => item.Name);
 
     res.setHeader(

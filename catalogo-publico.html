@@ -120,8 +120,13 @@
       display: flex;
       flex-wrap: wrap;
       gap: 9px;
-      margin-bottom: 22px;
-      position: static;
+      position: sticky;
+      top: 0;
+      z-index: 8;
+      background: var(--fondo);
+      padding: 10px 0 12px;
+      margin: 0 0 22px;
+      box-shadow: 0 3px 8px rgba(31, 48, 93, .08);
     }
     .categoria {
       border: 2px solid var(--azul);
@@ -383,17 +388,17 @@
         return String(valor || '')
           .toLowerCase()
           .normalize('NFD')
-          .replace(/[\\u0300-\\u036f]/g, '')
+          .replace(/[\u0300-\u036f]/g, '')
           .replace(/[^a-z0-9]+/g, ' ')
           .trim();
       }
 
       function sinPrefijo(valor) {
-        return String(valor || '').replace(/^[^:]+:\\s*/, '').trim();
+        return String(valor || '').replace(/^[^:]+:\s*/, '').trim();
       }
 
       function claveImagen(valor) {
-        return normalizar(valor).replace(/\\s+/g, '-');
+        return normalizar(valor).replace(/\s+/g, '-');
       }
 
       function leerJson(url, respaldo) {
@@ -427,7 +432,6 @@
 
           agregar(entrada.productoQuickBooksPrincipal);
           (entrada.productosQuickBooksEquivalentes || []).forEach(agregar);
-          agregar(entrada.nombreVisible);
         });
         return mapa;
       }
@@ -446,13 +450,16 @@
         var entrada = buscarEntrada(mapa, nombreQbo, sku);
         var mapaCategorias = mapaDirecto(categoriasPersistentes);
         var mapaImagenes = mapaDirecto(imagenesPersistentes);
-        var nombre = entrada && entrada.nombreVisible ? entrada.nombreVisible : nombreQbo;
-        var imagen = mapaImagenes[String(id)] ||
+        var nombre = item.nombreVisible ||
+          (entrada && entrada.nombreVisible ? entrada.nombreVisible : nombreQbo);
+        var imagen = item.imagen ||
+          mapaImagenes[String(id)] ||
           mapaImagenes[nombreQbo] ||
           mapaImagenes[sku] ||
           (entrada && entrada.imagen) ||
           '';
-        var categoria = mapaCategorias[String(id)] ||
+        var categoria = item.categoria ||
+          mapaCategorias[String(id)] ||
           (entrada && entrada.categoria) ||
           'Sin categoría';
         var precio = Number(
